@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CubeChat — Public</title>
+<style>
+  :root{--bg:#071327;--card:#0b1220;--muted:#98b1d6;--player:#b8e0ff;--ai:#b7ffc9}
+  body{font-family:Inter,system-ui,Segoe UI,Arial;margin:18px;background:var(--bg);color:#e6eef8}
+  .card{background:var(--card);padding:18px;border-radius:12px;max-width:980px;margin:12px auto;box-shadow:0 6px 30px rgba(0,0,0,.6)}
+  h1{margin:0 0 8px;font-size:20px}
+  #chat{height:480px;overflow:auto;padding:12px;border-radius:8px;background:#071427;margin-bottom:12px}
+  .msg{margin:8px 0;white-space:pre-wrap}
+  .player{color:var(--player)}
+  .ai{color:var(--ai)}
+  .controls{display:flex;gap:8px}
+  input{flex:1;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#071029;color:#e6eef8}
+  button{padding:8px;border-radius:8px;border:0;background:#12324a;color:#fff}
+  .notice{color:var(--muted);font-size:13px;margin-bottom:8px}
+  #resultsModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);background:#0b0b0b;color:#fff;padding:18px;border-radius:14px;width:90%;max-width:900px;max-height:80vh;overflow:auto;transition:transform .18s ease,opacity .18s;opacity:0;z-index:50}
+  #resultsModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .resultItem{padding:12px;border-radius:10px;background:#111;margin-bottom:10px}
+  .small{font-size:12px;color:#9fb1d6}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>CubeChat — Public</h1>
+    <p class="notice">This public version uses a hosted brain and cloud search. No training controls are shown.</p>
+
+    <div id="chat" aria-live="polite"></div>
+
+    <div style="display:flex;gap:8px">
+      <input id="userInput" placeholder="Type your message..." aria-label="message"/>
+      <button id="sendBtn">Send</button>
+    </div>
+    <div style="margin-top:8px" class="small">Tip: try "search: your query" to force a web search.</div>
+  </div>
+
+  <!-- Search results modal -->
+  <div id="resultsModal" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:flex-end"><button id="closeResults">✖</button></div>
+    <div id="results"></div>
+  </div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const resultsModal = document.getElementById('resultsModal');
+const resultsEl = document.getElementById('results');
+const closeResults = document.getElementById('closeResults');
+
+let brain = null;
+let history = [];
+
+// Load brain from server
+async function loadBrain(){
+  try {
+    const r = await fetch('/brain');
+    if(!r.ok) throw new Error('failed to load brain');
+    brain = await r.json();
+    console.log('brain loaded', Object.keys(brain.intents||{}).length, 'intents');
+    addSystem("Loaded brain — intents: " + Object.keys(brain.intents||{}).length);
+  } catch(e){
+    addSystem("Failed to load brain: " + e.message);
+  }
+}
+
+// simple intent matching (no model)
+function predictIntent(text){
+  if(!brain || !brain.intents) return 'fallback';
+  const t = text.toLowerCase();
+  for(const [intentName,intent] of Object.entries(brain.intents)){
+    if(!intent.triggers) continue;
+    for(const trig of intent.triggers){
+      if(trig && t.includes(trig.toLowerCase())) return intentName;
+    }
+  }
+  return 'fallback';
+}
+
+function addSystem(msg){ const d=document.createElement('div'); d.className='msg ai'; d.textContent=msg; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
+
+function addChat(who, text){
+  const d=document.createElement('div');
+  d.className='msg ' + (who==='player' ? 'player' : 'ai');
+  d.innerHTML = '<b>' + (who==='player' ? 'Player' : 'CubeAI') + ':</b> ' + escapeHtml(text);
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Web search via proxy (server) or direct to cube-search.onrender.com if proxy not available
+async function doSearch(q){
+  try {
+    // try server proxy first
+    const prox = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    if(prox.ok){
+      const js = await prox.json();
+      return js.results || [];
+    }
+  } catch(e){}
+  // fallback direct
+  try {
+    const res = await fetch(`https://cube-search.onrender.com/search?q=${encodeURIComponent(q)}`);
+    const js = await res.json();
+    return js.results || [];
+  } catch(e){
+    return [];
+  }
+}
+
+async function handleMessage(text){
+  if(!text) return;
+  addChat('player', text);
+  history.push({who:'player', text});
+
+  // quick 'search:' prefix triggers web search intent
+  if(text.toLowerCase().startsWith('search:')){
+    const q = text.slice(7).trim();
+    addChat('ai','Searching for: ' + q);
+    const results = await doSearch(q);
+    showResults(results);
+    return;
+  }
+
+  const intent = predictIntent(text);
+  if(intent && brain.intents[intent] && brain.intents[intent].responses){
+    let resp = brain.intents[intent].responses[Math.floor(Math.random()*brain.intents[intent].responses.length)];
+    // math support: if intent = math, try evaluating
+    if(intent === 'math'){
+      try {
+        const safe = text.replace(/[^0-9+\-*/(). xX]/g,'').replace(/x/gi,'*');
+        const val = Function('"use strict";return ('+safe+')')();
+        resp = resp.replace('{solution}', String(val));
+      } catch(e){
+        resp = resp.replace('{solution}','Sorry, I cannot solve that.');
+      }
+    }
+    addChat('ai', resp);
+    history.push({who:'ai', text: resp});
+    // if fallback text contains "I searched" or you want fallback to search, you can call doSearch here
+    if(intent === 'fallback'){
+      // optional: perform search automatically (commented out by default)
+      // const results = await doSearch(text); showResults(results);
+    }
+  } else {
+    addChat('ai',"I'm not sure. Try 'search: " + text + "' to look this up.");
+  }
+}
+
+function showResults(results){
+  resultsEl.innerHTML = '';
+  if(!results || results.length===0){
+    resultsEl.innerHTML = '<div class="small">No results found.</div>';
+  } else {
+    for(const r of results){
+      const it = document.createElement('div');
+      it.className = 'resultItem';
+      it.innerHTML = `<div style="font-weight:700">${escapeHtml(r.title||r.url||'Result')}</div>
+                      <div style="color:#bfcbdc">${escapeHtml(r.text||r.url||'')}</div>
+                      <div style="margin-top:6px"><a href="${escapeHtml(r.url||'')}" target="_blank">${escapeHtml(r.url||'Open link')}</a></div>`;
+      resultsEl.appendChild(it);
+    }
+  }
+  resultsModal.classList.add('show');
+}
+
+closeResults.onclick = ()=>resultsModal.classList.remove('show');
+sendBtn.onclick = ()=>{ handleMessage(inputEl.value.trim()); inputEl.value=''; inputEl.focus(); };
+inputEl.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ sendBtn.click(); e.preventDefault(); } });
+
+loadBrain();
+</script>
+</body>
+</html>
