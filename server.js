@@ -29,7 +29,7 @@ app.get("/brain", (req, res) => {
   }
 });
 
-// ENHANCED SEARCH + EXTRACTION (top 5 URLs, bundled snippets, better fallbacks)
+// BULLETPROOF SEARCH + EXTRACTION (2025-SAFE, NO CRASHES)
 app.get("/search", async (req, res) => {
   const q = req.query.q?.trim();
   if (!q) return res.status(400).json({ error: "Missing ?q" });
@@ -38,8 +38,10 @@ app.get("/search", async (req, res) => {
     return res.status(500).json({ error: "EXA_KEY not configured" });
   }
 
+  console.log(`Starting search for: "${q}"`);
+
   try {
-    // Step 1: Search with bundled contents (basic text included)
+    // Step 1: Search (with snippets for fallback)
     const searchRes = await fetch("https://api.exa.ai/search", {
       method: "POST",
       headers: {
@@ -49,33 +51,40 @@ app.get("/search", async (req, res) => {
       },
       body: JSON.stringify({
         query: q,
-        numResults: 10,  // More to pick from
+        numResults: 10,  // Balanced for quota
+        text: true,      // Bundled snippets
+        highlights: true,
         type: "auto",
-        contents: true,  // ← NEW: Bundles basic extracted text in search response
       }),
     });
 
     if (!searchRes.ok) {
       const txt = await searchRes.text();
-      console.error("Exa search error:", searchRes.status, txt.slice(0, 200));
-      return res.status(502).json({ error: "Search failed" });
+      console.error("Exa search failed:", searchRes.status, txt.slice(0, 200));
+      return res.status(502).json({ error: `Search API error ${searchRes.status}` });
     }
 
     const searchData = await searchRes.json();
+    console.log(`Search returned ${searchData.results?.length || 0} results`);
+
     const candidates = (searchData.results || [])
-      .filter(r => r.url)  // Only valid URLs
-      .slice(0, 5);  // Top 5 for extraction
+      .filter(r => r.url && r.url.startsWith('http'))  // Strict URL filter
+      .slice(0, 3);  // Top 3 only (quota-friendly)
 
     if (candidates.length === 0) {
+      console.log("No valid candidates found");
       return res.json({ results: [] });
     }
 
-    console.log(`Extracting from ${candidates.length} URLs for query: ${q}`);
+    console.log(`Extracting from ${candidates.length} URLs`);
 
-    // Step 2: Deep extraction for top candidates (if bundled text is short)
+    // Step 2: Extraction (safe handling)
     const topUrls = candidates.map(r => r.url);
     let fullContents = {};
     if (topUrls.length > 0) {
+      // Tiny delay for rate limits
+      await new Promise(r => setTimeout(r, 1000));
+
       const contentsRes = await fetch("https://api.exa.ai/contents", {
         method: "POST",
         headers: {
@@ -85,44 +94,56 @@ app.get("/search", async (req, res) => {
         body: JSON.stringify({
           urls: topUrls,
           extract: {
-            text: true,      // Full clean text
-            highlights: true, // Key phrases
+            text: true,
+            highlights: true,
           },
         }),
       });
 
-      if (contentsRes.ok) {
+      if (!contentsRes.ok) {
+        const txt = await contentsRes.text();
+        console.error("Exa contents failed:", contentsRes.status, txt.slice(0, 200));
+        // Don't crash – proceed with snippets
+      } else {
         const contentsData = await contentsRes.json();
-        fullContents = (contentsData.contents || {}).reduce((acc, c) => {
-          acc[c.url] = c;
+        // Safe access: contents is array of {url, text, ...}
+        fullContents = (contentsData.contents || []).reduce((acc, c) => {
+          if (c.url && c.text) {
+            acc[c.url] = c;
+          }
           return acc;
         }, {});
-        console.log(`Extracted content from ${Object.keys(fullContents).length}/${topUrls.length} URLs`);
-      } else {
-        console.error("Contents extraction failed:", contentsRes.status);
+        console.log(`Extracted full text from ${Object.keys(fullContents).length}/${topUrls.length} URLs`);
       }
     }
 
-    // Step 3: Build results (prefer full text, fallback to bundled/search snippet)
+    // Step 3: Build results (full > snippet > minimal fallback)
     const results = candidates.map(item => {
       const full = fullContents[item.url] || {};
-      const hasFullText = full.text && full.text.length > 100;  // Threshold for "good" extraction
+      let textContent = "";
+      if (full.text && full.text.trim().length > 150) {
+        textContent = full.text.substring(0, 3000).trim();  // Cap & clean
+      } else if (item.text && item.text.trim().length > 50) {
+        textContent = item.text.trim();
+      } else {
+        textContent = `Brief summary: ${item.snippet?.substring(0, 500) || 'Content limited (dynamic page or quota). Check the URL for details.'}`;
+      }
 
       return {
-        title: item.title || "Untitled",
+        title: item.title?.trim() || "Untitled",
         url: item.url,
-        text: hasFullText 
-          ? full.text.substring(0, 4000)  // Cap length for LLM
-          : (item.text || item.snippet || "No content extracted – page may be dynamic or restricted"),
-        snippet: item.text || item.snippet || "",  // Always include short version
-        extracted: hasFullText,  // Flag for frontend
+        text: textContent,
+        snippet: item.text?.trim() || item.snippet?.trim() || "",
+        extracted: !!full.text,  // Boolean flag
+        highlights: full.highlights || item.highlights || [],
       };
-    }).filter(r => r.text !== "No content extracted – page may be dynamic or restricted" || true);  // Keep all, but flag
+    });
 
+    console.log(`Returning ${results.length} results for "${q}"`);
     res.json({ results });
 
   } catch (err) {
-    console.error("Search error:", err.message);
+    console.error("Unhandled search error:", err.message, err.stack?.split('\n')[0]);
     res.status(500).json({ error: "Search failed", detail: err.message });
   }
 });
