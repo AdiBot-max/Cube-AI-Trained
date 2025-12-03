@@ -7,52 +7,42 @@ import cheerio from "cheerio";
 
 const app = express();
 
-// Required for rate limiter on Render
 app.set("trust proxy", 1);
-
-app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.static("public"));
 
-// Rate limiter: 20 req per 10s
 const limiter = rateLimit({
   windowMs: 10 * 1000,
-  max: 20,
+  max: 30
 });
 app.use(limiter);
 
-// --------------------------------------------------------------------------
-// Serve brain.json from local root
-// --------------------------------------------------------------------------
+// Serve brain.json locally
 app.get("/brain", (req, res) => {
   try {
     const raw = fs.readFileSync("./brain.json", "utf8");
     res.setHeader("Content-Type", "application/json");
     res.send(raw);
-  } catch (e) {
-    res.status(500).json({ error: "Failed to load brain.json", detail: e.message });
+  } catch (err) {
+    res.status(500).json({ error: "Cannot load brain.json" });
   }
 });
 
-// --------------------------------------------------------------------------
-// Proxy search to cube-search API
-// --------------------------------------------------------------------------
+// Proxy search to cube-search
 app.get("/search", async (req, res) => {
   const q = req.query.q || "";
-  if (!q) return res.status(400).json({ error: "Missing q parameter" });
-
   try {
-    const r = await fetch(`https://cube-search.onrender.com/search?q=${encodeURIComponent(q)}`);
+    const api = `https://cube-search.onrender.com/search?q=${encodeURIComponent(q)}`;
+    const r = await fetch(api);
     const json = await r.json();
     res.json(json);
   } catch (err) {
-    res.status(500).json({ error: "Search proxy failed", detail: err.message });
+    res.status(500).json({ error: "Search failed" });
   }
 });
 
-// --------------------------------------------------------------------------
-// Extract top text from a web page (knowledge extraction)
-// --------------------------------------------------------------------------
+// Extract webpage main text for answers
 app.get("/extract", async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: "Missing url" });
@@ -61,30 +51,24 @@ app.get("/extract", async (req, res) => {
     const html = await (await fetch(url)).text();
     const $ = cheerio.load(html);
 
-    // Try meta description first, then first <p>, else slice body
     let answer =
       $('meta[name="description"]').attr("content") ||
-      $("p").first().text() ||
-      $("body").text().slice(0, 300);
+      $("p").first().text().trim() ||
+      $("body").text().slice(0, 500);
 
     answer = answer.replace(/\s+/g, " ").trim();
 
-    return res.json({
-      answer: answer.slice(0, 350),
-      title: $("title").text().trim() || url
+    res.json({
+      answer: answer.slice(0, 400),
+      title: $("title").text().trim()
     });
+
   } catch (err) {
     res.json({ answer: null, title: null });
   }
 });
 
-// --------------------------------------------------------------------------
-// Health check
-// --------------------------------------------------------------------------
 app.get("/_health", (req, res) => res.json({ ok: true }));
 
-// --------------------------------------------------------------------------
-// Start server
-// --------------------------------------------------------------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running at http://0.0.0.0:${PORT}`));
