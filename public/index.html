@@ -53,158 +53,122 @@ const closeResults = document.getElementById('closeResults');
 let brain = null;
 let history = [];
 
-// load brain
+// Load brain
 async function loadBrain(){
   try {
-    const r = await fetch('/brain');
-    if (!r.ok) throw new Error('No brain available');
-    brain = await r.json();
-    systemMsg("Brain loaded — intents: " + (brain.intents ? Object.keys(brain.intents).length : 0));
-  } catch (e) {
-    systemMsg("Failed loading brain: " + e.message);
+    const res = await fetch('/brain');
+    brain = await res.json();
+    addSystem("Brain online");
+  } catch {
+    addSystem("Brain load error!");
   }
 }
 
-function systemMsg(t){
-  const d = document.createElement('div');
-  d.className = 'msg ai';
-  d.textContent = t;
+function escapeHTML(x){
+  return x.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function addSystem(msg){
+  const d=document.createElement('div');
+  d.className='msg ai';
+  d.textContent=msg;
   chatEl.appendChild(d);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  chatEl.scrollTop=chatEl.scrollHeight;
 }
 
-function addChat(who, text){
-  const d = document.createElement('div');
-  d.className = 'msg ' + (who === 'player' ? 'player' : 'ai');
-  d.innerHTML = `<b>${who === 'player' ? 'Player' : 'CubeAI'}:</b> ` + escapeHTML(text);
+function addChat(who,msg){
+  const d=document.createElement('div');
+  d.className='msg ' + (who==='player'?'player':'ai');
+  d.innerHTML = `<b>${who==='player'?'Player':'CubeAI'}:</b> ${escapeHTML(msg)}`;
   chatEl.appendChild(d);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  chatEl.scrollTop=chatEl.scrollHeight;
 }
 
-function escapeHTML(s){
-  return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// helper: call server search which performs extraction & summarization
-async function callSearch(q){
-  try {
-    const r = await fetch('/search?q=' + encodeURIComponent(q));
-    if (!r.ok) throw new Error('search failed');
-    return await r.json();
-  } catch (e) {
-    console.error("search error", e);
-    return { error: e.message, results: [] };
-  }
-}
-
-function showResults(results){
-  resultsEl.innerHTML = '';
-  if(!results || results.length === 0){
-    resultsEl.innerHTML = '<div class="small">No results</div>';
-  } else {
-    for(const r of results){
-      const it = document.createElement('div');
-      it.className = 'resultItem';
-      it.innerHTML = `
-        <div style="font-weight:700">${escapeHTML(r.title || r.url || 'Result')}</div>
-        <div style="color:#bfcbdc;margin-top:6px">${escapeHTML(r.summary || r.searchSnippet || '')}</div>
-        <div style="margin-top:8px" class="small">Source: <a class="sourceLink" href="${escapeHTML(r.url)}" target="_blank">${escapeHTML(r.url)}</a></div>
-        <div style="margin-top:8px"><button data-url="${escapeHTML(r.url)}" class="viewDocBtn">View extracted text</button></div>
-        <div class="extracted" style="margin-top:8px;display:none;color:#d0dbe8;white-space:pre-wrap"></div>
-      `;
-      // attach extracted text if available
-      const extracted = r.extracted || r.searchSnippet || "";
-      it.querySelector('.viewDocBtn').onclick = (ev) => {
-        const parent = ev.target.closest('.resultItem');
-        const exEl = parent.querySelector('.extracted');
-        if (exEl.style.display === 'none') {
-          exEl.style.display = 'block';
-          exEl.textContent = extracted || 'No extracted text available';
-          ev.target.textContent = 'Hide extracted text';
-        } else {
-          exEl.style.display = 'none';
-          ev.target.textContent = 'View extracted text';
-        }
-      };
-      resultsEl.appendChild(it);
+// Intent matcher
+function predictIntent(text){
+  const t=text.toLowerCase();
+  for(const k in brain.intents){
+    const data=brain.intents[k];
+    if(!data.triggers) continue;
+    for(const trig of data.triggers){
+      if(typeof trig==="string" && t.includes(trig.toLowerCase())) return k;
     }
+  }
+  return "fallback";
+}
+
+// Search using EXA
+async function doSearch(q){
+  try {
+    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    if(!r.ok) throw new Error("search failed");
+    const js = await r.json();
+    return js.results || [];
+  } catch(e){
+    console.error("search error", e);
+    return [];
+  }
+}
+
+function showResults(items){
+  resultsEl.innerHTML="";
+  for(const r of items){
+    const el=document.createElement("div");
+    el.className="resultItem";
+    el.innerHTML=`
+      <div><strong>${escapeHTML(r.title || '')}</strong></div>
+      <div style="color:#bbb">${escapeHTML(r.text || '')}</div>
+      <div style="margin-top:4px"><a href="${r.url}" target="_blank">${escapeHTML(r.url)}</a></div>`;
+    resultsEl.appendChild(el);
   }
   resultsModal.classList.add('show');
 }
 
-// simple substring intent predictor using brain
-function predictIntent(text){
-  if (!brain || !brain.intents) return 'fallback';
-  const t = text.toLowerCase();
-  for(const [k,v] of Object.entries(brain.intents)){
-    if (!v.triggers) continue;
-    // ensure triggers is iterable
-    if (!Array.isArray(v.triggers)) continue;
-    for(const trig of v.triggers){
-      if (!trig) continue;
-      if (t.includes(trig.toLowerCase())) return k;
-    }
-  }
-  return 'fallback';
-}
-
 async function handleMessage(text){
   if(!text) return;
-  addChat('player', text);
-  history.push({who:'player', text});
 
-  // forced search prefix
-  if (text.toLowerCase().startsWith('search:')){
-    const q = text.slice(7).trim();
-    addChat('ai', 'Searching: ' + q);
-    const js = await callSearch(q);
-    if (js.error) {
-      addChat('ai', 'Search failed: ' + js.error);
-      return;
-    }
-    // show bestAnswer in chat (immediate)
-    if (js.bestAnswer) addChat('ai', js.bestAnswer);
-    // show modal with full results & extracted text
-    showResults(js.results || []);
+  addChat("player",text);
+  history.push({who:"player",text});
+
+  if(text.toLowerCase().startsWith("search:")){
+    const q=text.slice(7).trim();
+    addChat("ai","Searching...");
+    const results=await doSearch(q);
+    if(results[0]) addChat("ai",results[0].text || "No summary");
+    showResults(results);
     return;
   }
 
-  // otherwise try intent matching with brain first
-  const intent = predictIntent(text);
+  const intent=predictIntent(text);
+  const intentObj=brain.intents[intent];
 
-  if (intent && brain.intents[intent] && Array.isArray(brain.intents[intent].responses)){
-    let resp = brain.intents[intent].responses[Math.floor(Math.random() * brain.intents[intent].responses.length)] || '';
-    // math quick support
-    if (intent === "math") {
-      try {
-        const safe = text.replace(/[^0-9+\-*/().xX ]/g,"").replace(/x/gi,"*");
-        const val = Function('"use strict";return (' + safe + ')')();
-        resp = resp.replace('{solution}', String(val));
-      } catch (e) {
-        resp = resp.replace('{solution}', "I can't solve that.");
-      }
-    }
-    addChat('ai', resp);
+  if(!intentObj || intent==="fallback"){
+    addChat("ai","Searching internet...");
+    const results=await doSearch(text);
+    if(results[0]) addChat("ai", results[0].text || "No result summary");
+    showResults(results);
     return;
   }
 
-  // fallback: use web search automatically (adaptive)
-  addChat('ai', "I don't know that — I'll search for it.");
-  const js = await callSearch(text);
-  if (js.error) {
-    addChat('ai', 'Search error: ' + js.error);
-    return;
+  let reply=intentObj.responses[Math.floor(Math.random()*intentObj.responses.length)];
+
+  if(intent==="math"){
+    try {
+      const safe=text.replace(/[^0-9+\-*/(). xX%]/g,'').replace(/x/gi,'*');
+      reply=reply.replace("{solution}",Function("return ("+safe+")")());
+    }catch{ reply=reply.replace("{solution}","Err"); }
   }
-  if (js.bestAnswer) addChat('ai', js.bestAnswer);
-  showResults(js.results || []);
+
+  addChat("ai",reply);
+  history.push({who:"ai",text:reply});
 }
 
-// UI events
-sendBtn.onclick = () => { handleMessage(inputEl.value.trim()); inputEl.value = ""; inputEl.focus(); };
-inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { sendBtn.click(); e.preventDefault(); } });
-closeResults.onclick = () => resultsModal.classList.remove('show');
+sendBtn.onclick=()=>{handleMessage(inputEl.value.trim());inputEl.value="";inputEl.focus();};
+inputEl.onkeydown=e=>{if(e.key==="Enter"){sendBtn.click();}};
+closeResults.onclick=()=>resultsModal.classList.remove("show");
 
 loadBrain();
 </script>
+
 </body>
 </html>
