@@ -6,145 +6,239 @@
 <title>CubeChat — Public</title>
 
 <style>
-:root{
-  --bg:#071327;--card:#0b1220;--player:#b8e0ff;--ai:#b7ffc9;--muted:#9fb1d6;
-}
-body{margin:18px;font-family:Inter,system-ui;background:var(--bg);color:#e6eef8}
-.card{background:var(--card);padding:18px;border-radius:12px;max-width:980px;margin:12px auto}
-#chat{height:500px;overflow:auto;background:#071427;border-radius:8px;padding:12px;margin-bottom:12px}
-.msg{margin:6px 0;white-space:pre-wrap;font-size:15px}
-.player{color:var(--player)}
-.ai{color:var(--ai)}
-input{flex:1;padding:10px;background:#071029;border:1px solid #1f2937;border-radius:8px;color:#e6eef8}
-button{padding:10px 14px;border-radius:8px;background:#12324a;color:#fff;border:0;cursor:pointer}
-button:hover{background:#184965}
-.notice{color:var(--muted);font-size:13px}
+  :root{
+    --bg:#071327;
+    --card:#0b1220;
+    --muted:#98b1d6;
+    --player:#b8e0ff;
+    --ai:#b7ffc9;
+  }
+  body{
+    font-family:Inter,system-ui,Segoe UI,Arial;
+    margin:18px;
+    background:var(--bg);
+    color:#e6eef8;
+  }
+  .card{
+    background:var(--card);
+    padding:18px;
+    border-radius:12px;
+    max-width:980px;
+    margin:12px auto;
+    box-shadow:0 6px 30px rgba(0,0,0,.55);
+  }
+  h1{margin:0 0 8px;font-size:22px}
+  #chat{
+    height:500px;
+    overflow:auto;
+    padding:12px;
+    border-radius:8px;
+    background:#071427;
+    margin-bottom:12px;
+  }
+  .msg{margin:8px 0;white-space:pre-wrap;font-size:15px;line-height:1.4}
+  .player{color:var(--player)}
+  .ai{color:var(--ai)}
+  input{
+    flex:1;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #1f2937;
+    background:#071029;
+    color:#e6eef8;
+  }
+  button{
+    padding:10px 14px;
+    border-radius:8px;
+    border:0;
+    background:#12324a;
+    color:#fff;
+    cursor:pointer;
+  }
+  button:hover{background:#174564}
 
-/* popup */
-#resultsModal{
-  position:fixed;left:50%;top:50%;
-  transform:translate(-50%,-50%) scale(0);
-  opacity:0;background:#000;padding:14px;border-radius:14px;
-  width:90%;max-width:800px;max-height:80vh;overflow:auto;
-  transition:.2s;z-index:9999
-}
-#resultsModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
-.resultItem{background:#111;border-radius:10px;padding:10px;margin:8px 0}
+  .notice{color:var(--muted);font-size:13px;margin-bottom:8px}
+
+  /* SEARCH MODAL */
+  #resultsModal{
+    position:fixed;
+    left:50%;top:50%;
+    transform:translate(-50%,-50%) scale(0);
+    opacity:0;
+    background:#0b0b0b;
+    color:#fff;
+    padding:18px;
+    border-radius:14px;
+    width:90%;
+    max-width:900px;
+    max-height:80vh;
+    overflow:auto;
+    z-index:9999;
+    transition:transform .18s,opacity .18s;
+  }
+  #resultsModal.show{
+    transform:translate(-50%,-50%) scale(1);
+    opacity:1;
+  }
+  .resultItem{
+    padding:12px;
+    border-radius:10px;
+    background:#111;
+    margin-bottom:10px;
+  }
 </style>
 </head>
 
 <body>
 <div class="card">
-  <h2>CubeChat — Public</h2>
-  <p class="notice">Ask anything! CubeAI extracts answers from the web if needed.</p>
+  <h1>CubeChat — Public</h1>
+  <p class="notice">Uses hosted brain + web extraction.</p>
 
   <div id="chat"></div>
 
   <div style="display:flex;gap:8px">
-    <input id="userInput" placeholder="Ask me something..."/>
+    <input id="userInput" placeholder="Ask me anything..." aria-label="message"/>
     <button id="sendBtn">Send</button>
   </div>
+
+  <p class="notice">Use <b>search: your query</b> to force search.</p>
 </div>
 
+<!-- SEARCH POPUP -->
 <div id="resultsModal">
-  <button id="closeResults" style="float:right">✖</button>
+  <div style="display:flex;justify-content:flex-end">
+    <button id="closeResults">✖</button>
+  </div>
   <div id="results"></div>
 </div>
 
 <script>
-const chatEl=document.getElementById("chat");
-const inputEl=document.getElementById("userInput");
-const sendBtn=document.getElementById("sendBtn");
-const resultsModal=document.getElementById("resultsModal");
-const resultsEl=document.getElementById("results");
-const closeResults=document.getElementById("closeResults");
+const chatEl = document.getElementById("chat");
+const inputEl = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+const resultsModal = document.getElementById("resultsModal");
+const resultsEl = document.getElementById("results");
+const closeResults = document.getElementById("closeResults");
 
-let brain=null;
+let brain = null;
 
-//======== Load Brain
+// Load brain
 async function loadBrain(){
-  const r=await fetch("/brain").catch(()=>{});
-  if(!r||!r.ok) return addChat("ai","❌ Cannot load brain");
-  brain=await r.json();
-  addChat("ai","Brain Ready!");
+  try{
+    const res = await fetch("/brain");
+    const txt = await res.text();
+    brain = JSON.parse(txt.trim());
+    addAI("Brain loaded 🧠");
+  }
+  catch(e){
+    addAI("Error loading brain: "+e.message);
+  }
 }
+loadBrain();
 
-//======== Chat UI
-function addChat(who,msg){
+// Chat UI
+function addAI(msg){
   const d=document.createElement("div");
-  d.className="msg "+(who=="player"?"player":"ai");
-  d.innerHTML="<b>"+(who=="player"?"You":"CubeAI")+":</b> "+msg;
+  d.className="msg ai";
+  d.innerHTML="<b>CubeAI:</b> "+msg;
   chatEl.appendChild(d);
-  chatEl.scrollTop=chatEl.scrollHeight;
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function addPlayer(msg){
+  const d=document.createElement("div");
+  d.className="msg player";
+  d.innerHTML="<b>Player:</b> "+msg;
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
 }
 
-//======== Intent Prediction
+// Safe intent detection
 function predictIntent(text){
   const t=text.toLowerCase();
+
   for(const k in brain.intents){
-    for(const trig of brain.intents[k].triggers){
-      if(t.includes(trig.toLowerCase())) return k;
+    const i=brain.intents[k];
+    if(!i || !Array.isArray(i.triggers)) continue;
+    for(const trig of i.triggers){
+      if(typeof trig==="string" && t.includes(trig.toLowerCase())){
+        return k;
+      }
     }
   }
   return "fallback";
 }
 
-//======== Search + Extract Real Web Content
-async function searchAndExtract(q){
-  const s=await fetch("/search?q="+encodeURIComponent(q));
-  const js=await s.json();
-
-  if(!js.results.length){
-    return addChat("ai","No info found");
-  }
-
-  const top=js.results[0];
-  const e=await fetch("/extract?url="+encodeURIComponent(top.url));
-  const info=await e.json();
-
-  if(info.answer){
-    addChat("ai",info.answer+"<br><br>📌 Source: "+info.title);
-  }else{
-    showLinks(js.results);
+// Web search + extraction
+async function doSearch(q){
+  try{
+    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    return j.results || [];
+  } catch{
+    return [];
   }
 }
 
-//======== Popup fallback
-function showLinks(arr){
+function showResults(items){
   resultsEl.innerHTML="";
-  arr.forEach(r=>{
-    const d=document.createElement("div");
-    d.className="resultItem";
-    d.innerHTML=`<div>${r.title}</div><a href="${r.url}" target="_blank">${r.url}</a>`;
-    resultsEl.appendChild(d);
-  });
+  if(!items.length){
+    resultsEl.innerHTML="<div>No info available.</div>";
+  } else {
+    for(const r of items){
+      const d=document.createElement("div");
+      d.className="resultItem";
+      d.innerHTML=`
+        <b>${r.title || "Source"}</b><br>
+        <p>${r.excerpt || r.text || "No extract."}</p>
+        <a href="${r.url}" target="_blank">Open source</a>
+      `;
+      resultsEl.appendChild(d);
+    }
+  }
   resultsModal.classList.add("show");
 }
 
-//======== Message Handler
-async function handleMessage(text){
-  addChat("player",text);
-  const intent=predictIntent(text);
+// Core reply logic
+async function handle(text){
+  addPlayer(text);
+  if(!brain) return addAI("Brain loading...");
+
+  // Forced search
+  if(text.toLowerCase().startsWith("search:")){
+    const q=text.slice(7).trim();
+    addAI("Searching Web: "+q+"🔍");
+    showResults(await doSearch(q));
+    return;
+  }
+
+  // Intent
+  const intent = predictIntent(text);
 
   if(intent==="fallback"){
-    return searchAndExtract(text);
+    addAI("Let me search the web for that 🔍");
+    showResults(await doSearch(text));
+    return;
   }
-  
-  let resp=brain.intents[intent].responses[
-    Math.floor(Math.random()*brain.intents[intent].responses.length)
-  ];
-  addChat("ai",resp);
+
+  const resps = brain.intents[intent].responses;
+  const reply=resps[Math.floor(Math.random()*resps.length)];
+  addAI(reply);
 }
 
-//======== UI Events
-sendBtn.onclick = ()=>{handleMessage(inputEl.value);inputEl.value=""}
-inputEl.addEventListener("keydown",e=>{
-  if(e.key==="Enter"){sendBtn.click()}
-});
+// Events
+sendBtn.onclick=()=>{
+  const t=inputEl.value.trim();
+  inputEl.value="";
+  if(t) handle(t);
+};
+inputEl.onkeydown=e=>{
+  if(e.key==="Enter"){
+    sendBtn.click();
+    e.preventDefault();
+  }
+};
 closeResults.onclick=()=>resultsModal.classList.remove("show");
-
-//======== Init
-loadBrain();
 </script>
+
 </body>
 </html>
