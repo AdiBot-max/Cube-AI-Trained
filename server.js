@@ -6,8 +6,6 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
 
-// Fix path resolution in ESM
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -18,7 +16,6 @@ app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
 app.use(express.static("public"));
 
-// Rate limiter: 20 requests per 10 seconds (same as before)
 const limiter = rateLimit({
   windowMs: 10 * 1000,
   max: 20,
@@ -27,7 +24,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Serve brain.json
 app.get("/brain", (req, res) => {
   try {
     const raw = fs.readFileSync(path.join(__dirname, "brain.json"), "utf8");
@@ -37,40 +33,41 @@ app.get("/brain", (req, res) => {
   }
 });
 
-// FIXED EXA SEARCH – WORKING 2025 VERSION
 app.get("/search", async (req, res) => {
   const q = req.query.q?.trim();
   if (!q) return res.status(400).json({ error: "Missing ?q" });
 
   if (!process.env.EXA_KEY) {
-    console.error("EXA_KEY not set in environment variables");
     return res.status(500).json({ error: "Server misconfigured (missing EXA_KEY)" });
   }
 
   try {
+    // Tiny delay to appease Cloudflare (optional)
+    await new Promise(r => setTimeout(r, 500));
+
     const response = await fetch("https://api.exa.ai/v1/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.EXA_KEY, // ← your key in Render env
+        "x-api-key": process.env.EXA_KEY,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9"
       },
       body: JSON.stringify({
         query: q,
         numResults: 10,
-        useAutoprompt: false,
-        // you can add includeDomains/excludeDomains here if you want
+        useAutoprompt: false
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Exa API error:", response.status, errorText);
+      console.error("Exa API error:", response.status, errorText.substring(0, 200) + "...");
       throw new Error(`Exa API returned ${response.status}`);
     }
 
     const data = await response.json();
-
-    // Normalize results to the format your frontend expects
     const items = (data.results || []).map(r => ({
       title: r.title || "Untitled",
       text: r.snippet || r.text || "",
@@ -85,7 +82,6 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// Health check
 app.get("/_health", (_, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 const PORT = process.env.PORT || 3000;
