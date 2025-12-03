@@ -16,14 +16,16 @@ app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
 app.use(express.static("public"));
 
+// Gentle rate limiting
 const limiter = rateLimit({
-  windowMs: 10 * 1000,
+  windowMs: 10_000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
+// Serve brain.json
 app.get("/brain", (req, res) => {
   try {
     const raw = fs.readFileSync(path.join(__dirname, "brain.json"), "utf8");
@@ -33,59 +35,70 @@ app.get("/brain", (req, res) => {
   }
 });
 
+// CORRECT & WORKING EXA SEARCH ENDPOINT – DECEMBER 2025
 app.get("/search", async (req, res) => {
   const q = req.query.q?.trim();
-  if (!q) return res.status(400).json({ error: "Missing ?q" });
+  if (!q) return res.status(400).json({ error: "Missing ?q parameter" });
 
   if (!process.env.EXA_KEY) {
-    return res.status(500).json({ error: "Server misconfigured (missing EXA_KEY)" });
+    console.error("EXA_KEY is disabled – EXA_KEY not set");
+    return res.status(500).json({ error: "Search unavailable (missing API key)" });
   }
 
   try {
-    // Tiny delay to appease Cloudflare (optional)
-    await new Promise(r => setTimeout(r, 500));
-
-    const response = await fetch("https://api.exa.ai/v1/search", {
+    const response = await fetch("https://api.exa.ai/search", { // Correct endpoint (no /v1)
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.EXA_KEY,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9"
+        // These headers make Cloudflare happy on Render/Vercel/etc.
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive"
       },
       body: JSON.stringify({
         query: q,
-        numResults: 10,
-        useAutoprompt: false
+        numResults: 10,           // 1–100
+        text: true,            // include full snippets
+        highlights: true,      // better snippets
+        type: "auto"           // "auto" | "neural" | "keyword"
+        // useAutoprompt is deprecated and ignored
       }),
+    }),
     });
 
+    // Detailed error logging
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Exa API error:", response.status, errorText.substring(0, 200) + "...");
-      throw new Error(`Exa API returned ${response.status}`);
+      const text = await response.text();
+      console.error(`Exa API ${response.status}:`, text.slice(0, 300));
+      // 401/403 = bad or expired key
+      // 429 = rate limit
+      // 5xx = Exa down
+      return res.status(502).json({ error: `Exa API error ${response.status}` });
     }
 
     const data = await response.json();
+
     const items = (data.results || []).map(r => ({
-      title: r.title || "Untitled",
-      text: r.snippet || r.text || "",
-      url: r.url || "#",
+      title: r.title || "No title",
+      text: r.text || r.snippet || "",
+      url: r.url || "#"
     }));
 
     res.json({ results: items });
 
   } catch (err) {
-    console.error("EXA search failed:", err.message);
+    console.error("Search request failed:", err.message);
     res.status(500).json({ error: "Search failed", detail: err.message });
   }
 });
 
-app.get("/_health", (_, res) => res.json({ ok: true, time: new Date().toISOString() }));
+// Health check
+app.get("/_health", (_, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server live on port ${PORT}`);
   console.log(`EXA_KEY ${process.env.EXA_KEY ? "present" : "MISSING"}`);
 });
