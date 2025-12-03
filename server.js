@@ -3,7 +3,8 @@ import cors from "cors";
 import fetch from "node-fetch";
 import rateLimit from "express-rate-limit";
 import fs from "fs";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio"; // FIXED IMPORT
+
 
 const app = express();
 
@@ -72,3 +73,4 @@ app.get("/_health", (req, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running at http://0.0.0.0:${PORT}`));
+
