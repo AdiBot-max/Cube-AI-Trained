@@ -1,5 +1,9 @@
 {
     "intents": {
+        "pixel_art": {
+  "triggers": ["pixel", "image", "sprite", "generate image", "draw"],
+  "responses": ["Generating a pixel sprite!"]
+},
       "greet": {
         "triggers": [
           "hi",
