@@ -3,172 +3,169 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>CubeChat — Public (Adaptive extraction)</title>
+<title>CubeChat — Public Pixel Edition</title>
 <style>
   :root{--bg:#071327;--card:#0b1220;--muted:#98b1d6;--player:#b8e0ff;--ai:#b7ffc9}
   body{font-family:Inter,system-ui,Segoe UI,Arial;margin:18px;background:var(--bg);color:#e6eef8}
   .card{background:var(--card);padding:18px;border-radius:12px;max-width:980px;margin:12px auto;box-shadow:0 6px 30px rgba(0,0,0,.6)}
-  h1{margin:0 0 8px;font-size:20px}
-  #chat{height:520px;overflow:auto;padding:12px;border-radius:8px;background:#071427;margin-bottom:12px}
+  #chat{height:520px;overflow-y:auto;padding:12px;border-radius:8px;background:#071427;margin-bottom:12px}
   .msg{margin:8px 0;white-space:pre-wrap}
   .player{color:var(--player)}
   .ai{color:var(--ai)}
-  .controls{display:flex;gap:8px}
   input{flex:1;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#071029;color:#e6eef8}
-  button{padding:8px;border-radius:8px;border:0;background:#12324a;color:#fff}
+  button{padding:10px;border-radius:8px;border:0;background:#12324a;color:#fff;cursor:pointer}
   .notice{color:var(--muted);font-size:13px;margin-bottom:8px}
-  #resultsModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);background:#0b0b0b;color:#fff;padding:18px;border-radius:14px;width:92%;max-width:980px;max-height:80vh;overflow:auto;transition:transform .18s,opacity .18s;opacity:0;z-index:50}
+
+  /* SEARCH MODAL */
+  #resultsModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);opacity:0;
+    background:#0b0b0b;padding:18px;border-radius:14px;width:92%;max-width:980px;
+    max-height:80vh;overflow:auto;transition:transform .18s,opacity .18s;z-index:50}
   #resultsModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
   .resultItem{padding:12px;border-radius:10px;background:#111;margin-bottom:10px}
-  .small{font-size:12px;color:#9fb1d6}
-  .sourceLink{color:#4da6ff}
+
+  /* PIXEL ART MODAL */
+  #pixelModal{
+    position:fixed;left:50%;top:50%;
+    transform:translate(-50%,-50%) scale(0);
+    background:#000;padding:20px;border-radius:14px;
+    width:300px;color:#fff;opacity:0;transition:.2s;z-index:80
+  }
+  #pixelModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>CubeChat — Public</h1>
-    <p class="notice">Adaptive extraction: short answers for simple queries, longer explanations for "how/why/explain". Use <b>search: your query</b> to force search & document extraction.</p>
 
-    <div id="chat" aria-live="polite"></div>
+<div class="card">
+  <h1>CubeChat — Public Pixel Edition</h1>
+  <p class="notice">Ask anything. Try: <b>make a pixel alien</b> or <b>search: chrome extensions</b></p>
+  <div id="chat"></div>
 
-    <div style="display:flex;gap:8px">
-      <input id="userInput" placeholder="Type your message..." aria-label="message"/>
-      <button id="sendBtn">Send</button>
-    </div>
+  <div style="display:flex;gap:8px">
+    <input id="userInput" placeholder="Type here..."/>
+    <button id="sendBtn">Send</button>
   </div>
+</div>
 
-  <div id="resultsModal" role="dialog" aria-modal="true">
-    <div style="display:flex;justify-content:flex-end"><button id="closeResults">✖</button></div>
-    <div id="results"></div>
+<!-- SEARCH RESULTS POPUP -->
+<div id="resultsModal"><button id="closeResults">✖</button><div id="results"></div></div>
+
+<!-- PIXEL ART POPUP -->
+<div id="pixelModal">
+  <div style="text-align:right"><button id="closePixel">✖</button></div>
+  <h3>Generated Pixel Art</h3>
+  <canvas id="pixelCanvas"></canvas>
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+    <button id="regenPixel">New</button>
+    <button id="downloadPixel">Save</button>
   </div>
+</div>
 
 <script>
-const chatEl = document.getElementById('chat');
-const inputEl = document.getElementById('userInput');
-const sendBtn = document.getElementById('sendBtn');
-const resultsModal = document.getElementById('resultsModal');
-const resultsEl = document.getElementById('results');
-const closeResults = document.getElementById('closeResults');
+/* ---------- Pixel Generator ---------- */
+const pixelModal=document.getElementById('pixelModal');
+const pixelCanvas=document.getElementById('pixelCanvas');
+const pctx=pixelCanvas.getContext('2d');
+pixelCanvas.width=16; pixelCanvas.height=16;
+pixelCanvas.style.width="256px"; pixelCanvas.style.imageRendering="pixelated";
 
-let brain = null;
-let history = [];
-
-// Load brain
-async function loadBrain(){
-  try {
-    const res = await fetch('/brain');
-    brain = await res.json();
-    addSystem("Brain online");
-  } catch {
-    addSystem("Brain load error!");
+function randomColor(){
+  const c=["#00eaff","#0dc9f7","#007799","#33ffff","#99ffff"];
+  return c[Math.floor(Math.random()*c.length)];
+}
+function generatePixelArt(){
+  pctx.clearRect(0,0,16,16);
+  for(let y=0;y<16;y++){
+    for(let x=0;x<8;x++){
+      if(Math.random()>0.4){
+        let col=randomColor();
+        pctx.fillStyle=col;
+        pctx.fillRect(x,y,1,1);
+        pctx.fillRect(15-x,y,1,1);
+      }
+    }
   }
 }
+function openPixelArt(){pixelModal.classList.add("show");generatePixelArt();}
+const closePixel=()=>pixelModal.classList.remove("show");
+regenPixel.onclick=generatePixelArt;
+downloadPixel.onclick=()=>{let a=document.createElement("a");a.href=pixelCanvas.toDataURL();a.download="pixel.png";a.click();};
+closePixel.onclick=closePixel;
 
-function escapeHTML(x){
-  return x.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-function addSystem(msg){
-  const d=document.createElement('div');
-  d.className='msg ai';
-  d.textContent=msg;
-  chatEl.appendChild(d);
-  chatEl.scrollTop=chatEl.scrollHeight;
-}
-
+/* ---------- Chat + Brain ---------- */
+const chatEl=document.getElementById("chat");
 function addChat(who,msg){
-  const d=document.createElement('div');
-  d.className='msg ' + (who==='player'?'player':'ai');
-  d.innerHTML = `<b>${who==='player'?'Player':'CubeAI'}:</b> ${escapeHTML(msg)}`;
+  let d=document.createElement("div");
+  d.className="msg "+(who==="player"?"player":"ai");
+  d.innerHTML="<b>"+(who==="player"?"Player":"CubeAI")+":</b> "+msg;
   chatEl.appendChild(d);
   chatEl.scrollTop=chatEl.scrollHeight;
 }
 
-// Intent matcher
-function predictIntent(text){
-  const t=text.toLowerCase();
+let brain=null;
+async function loadBrain(){
+  let r=await fetch("/brain");
+  brain=await r.json();
+  addChat("ai","Brain online");
+}
+loadBrain();
+
+/* ---------- Intent Matching ---------- */
+function predictIntent(txt){
+  const t=txt.toLowerCase();
   for(const k in brain.intents){
-    const data=brain.intents[k];
-    if(!data.triggers) continue;
-    for(const trig of data.triggers){
+    for(const trig of brain.intents[k].triggers||[])
       if(typeof trig==="string" && t.includes(trig.toLowerCase())) return k;
-    }
   }
   return "fallback";
 }
 
-// Search using EXA
+/* ---------- Web Search ---------- */
 async function doSearch(q){
-  try {
-    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
-    if(!r.ok) throw new Error("search failed");
-    const js = await r.json();
-    return js.results || [];
-  } catch(e){
-    console.error("search error", e);
-    return [];
-  }
+  const r=await fetch("/search?q="+encodeURIComponent(q));
+  if(!r.ok) return [];
+  const j=await r.json();
+  return j.results||[];
+}
+function showResults(res){
+  results.innerHTML="";
+  res.forEach(r=>{
+    const d=document.createElement("div");
+    d.className="resultItem";
+    d.innerHTML="<strong>"+r.title+"</strong><br><span>"+(r.text||"")+"</span><br><a href='"+r.url+"' target='_blank'>Open</a>";
+    results.appendChild(d);
+  });
+  resultsModal.classList.add("show");
 }
 
-function showResults(items){
-  resultsEl.innerHTML="";
-  for(const r of items){
-    const el=document.createElement("div");
-    el.className="resultItem";
-    el.innerHTML=`
-      <div><strong>${escapeHTML(r.title || '')}</strong></div>
-      <div style="color:#bbb">${escapeHTML(r.text || '')}</div>
-      <div style="margin-top:4px"><a href="${r.url}" target="_blank">${escapeHTML(r.url)}</a></div>`;
-    resultsEl.appendChild(el);
-  }
-  resultsModal.classList.add('show');
-}
-
-async function handleMessage(text){
+/* ---------- Core Message Handler ---------- */
+sendBtn.onclick=async()=>{
+  const text=userInput.value.trim();
   if(!text) return;
-
   addChat("player",text);
-  history.push({who:"player",text});
-
-  if(text.toLowerCase().startsWith("search:")){
-    const q=text.slice(7).trim();
-    addChat("ai","Searching...");
-    const results=await doSearch(q);
-    if(results[0]) addChat("ai",results[0].text || "No summary");
-    showResults(results);
-    return;
-  }
+  userInput.value="";
 
   const intent=predictIntent(text);
-  const intentObj=brain.intents[intent];
+  const it=brain.intents[intent];
 
-  if(!intentObj || intent==="fallback"){
-    addChat("ai","Searching internet...");
-    const results=await doSearch(text);
-    if(results[0]) addChat("ai", results[0].text || "No result summary");
-    showResults(results);
+  if(intent==="pixel_art"){
+    addChat("ai","Generating pixel art!");
+    openPixelArt();
+    return;
+  }
+  if(text.startsWith("search:")||intent==="fallback"){
+    addChat("ai","Searching…");
+    const res=await doSearch(text.replace("search:","").trim());
+    if(res[0]) addChat("ai",res[0].text);
+    showResults(res);
     return;
   }
 
-  let reply=intentObj.responses[Math.floor(Math.random()*intentObj.responses.length)];
-
-  if(intent==="math"){
-    try {
-      const safe=text.replace(/[^0-9+\-*/(). xX%]/g,'').replace(/x/gi,'*');
-      reply=reply.replace("{solution}",Function("return ("+safe+")")());
-    }catch{ reply=reply.replace("{solution}","Err"); }
-  }
-
+  const reply=it.responses[Math.floor(Math.random()*it.responses.length)];
   addChat("ai",reply);
-  history.push({who:"ai",text:reply});
-}
+};
 
-sendBtn.onclick=()=>{handleMessage(inputEl.value.trim());inputEl.value="";inputEl.focus();};
-inputEl.onkeydown=e=>{if(e.key==="Enter"){sendBtn.click();}};
 closeResults.onclick=()=>resultsModal.classList.remove("show");
-
-loadBrain();
+userInput.onkeydown=e=>{if(e.key==="Enter")sendBtn.click();}
 </script>
-
 </body>
 </html>
