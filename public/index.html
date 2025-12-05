@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>CubeChat — Public (Generator)</title>
+<title>CubeChat — Public (Smart Creative)</title>
 <style>
   :root{--bg:#071327;--card:#0b1220;--muted:#98b1d6;--player:#b8e0ff;--ai:#b7ffc9}
   body{font-family:Inter,system-ui,Segoe UI,Arial;margin:18px;background:var(--bg);color:#e6eef8}
@@ -13,230 +13,588 @@
   .msg{margin:8px 0;white-space:pre-wrap}
   .player{color:var(--player)}
   .ai{color:var(--ai)}
-  input{flex:1;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#071029;color:#e6eef8}
-  button{padding:8px;border-radius:8px;border:0;background:#12324a;color:#fff}
+  .controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  input[type="text"]{flex:1;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#071029;color:#e6eef8}
+  button{padding:8px;border-radius:8px;border:0;background:#12324a;color:#fff;cursor:pointer}
   .notice{color:var(--muted);font-size:13px;margin-bottom:8px}
   #resultsModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);background:#0b0b0b;color:#fff;padding:18px;border-radius:14px;width:92%;max-width:980px;max-height:80vh;overflow:auto;transition:transform .18s,opacity .18s;opacity:0;z-index:50}
   #resultsModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
   .resultItem{padding:12px;border-radius:10px;background:#111;margin-bottom:10px}
-  #pixelModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);background:#000;padding:20px;border-radius:14px;width:320px;color:#fff;opacity:0;transition:.2s;z-index:80}
+  .small{font-size:12px;color:#9fb1d6}
+  #pixelModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);background:#000;padding:20px;border-radius:14px;width:300px;color:#fff;opacity:0;transition:.2s;z-index:80}
   #pixelModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
-  canvas{image-rendering:pixelated}
-  .spinner{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.12);border-top-color:#4da6ff;animation:spin .9s linear infinite;margin-left:8px}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  #pixelCanvas{width:256px;height:256px;image-rendering:pixelated;border:1px solid #222;display:block;margin:10px auto}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .badge{padding:6px 8px;border-radius:8px;background:#081a24;color:#9fb1d6;font-size:12px}
+  .muted{color:var(--muted)}
+  .linklike{color:#4da6ff; cursor:pointer; text-decoration:underline;}
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>CubeChat — Public</h1>
-    <p class="notice">This public version generates new replies using a tiny local composer. Use <b>search: your query</b> to force web/document extraction.</p>
+    <h1>CubeChat — Public (Smart)</h1>
+    <p class="notice">Smart mode: balanced creativity. Use <b>teach: trigger => response</b> to teach locally. Use <b>search: query</b> to force web search/extraction.</p>
+
+    <div class="toolbar">
+      <div class="controls" style="flex:1">
+        <input id="userInput" type="text" placeholder="Type your message... (or teach: / remember: / search:)" />
+        <button id="sendBtn">Send</button>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="saveLocalBtn" title="Save learned brain to localStorage">Save local brain</button>
+        <button id="resetLocalBtn" title="Clear local learning">Reset local brain</button>
+        <button id="openPixelBtn" title="Open pixel sprite generator">Pixel</button>
+        <div class="badge">Creativity: <span id="creativityLabel">Smart (0.5)</span></div>
+      </div>
+    </div>
 
     <div id="chat" aria-live="polite"></div>
 
-    <div style="display:flex;gap:8px">
-      <input id="userInput" placeholder="Type your message..." aria-label="message"/>
-      <button id="sendBtn">Send</button>
-      <button id="pixelBtn">Pixel</button>
-    </div>
+    <div style="margin-top:10px" class="small muted">Shortcuts: <b>teach: trigger => response</b> (local only), <b>remember: key = value</b></div>
   </div>
 
-  <div id="resultsModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <!-- Search results modal -->
+  <div id="resultsModal" role="dialog" aria-modal="true">
     <div style="display:flex;justify-content:flex-end"><button id="closeResults">✖</button></div>
     <div id="results"></div>
   </div>
 
+  <!-- Pixel modal -->
   <div id="pixelModal" role="dialog" aria-modal="true">
-    <div style="display:flex; justify-content:flex-end"><button id="closePixel">✖</button></div>
-    <h3>Generated Pixel Sprite</h3>
-    <canvas id="pixelCanvas" width="16" height="16" style="width:256px;height:256px;background:#000"></canvas>
-    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+    <div style="display:flex;justify-content:flex-end"><button id="closePixel">✖</button></div>
+    <h3 style="text-align:center;margin:6px 0">Generated Pixel Sprite</h3>
+    <canvas id="pixelCanvas" width="16" height="16"></canvas>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
       <button id="regenPixel">New</button>
       <button id="downloadPixel">Download</button>
     </div>
   </div>
 
 <script>
+/* ============================
+   Config & local storage keys
+   ============================ */
+const LOCAL_KEY = 'cube_local_brain_v1';
+const SETTINGS_KEY = 'cube_settings_v1';
+const SMART_CREATIVITY = 0.5; // default creative weight for Smart
+let creativityWeight = SMART_CREATIVITY; // 0..1 (0 = deterministic, 1 = fully Markov)
+
+/* ============================
+   UI references
+   ============================ */
 const chatEl = document.getElementById('chat');
 const inputEl = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
-const pixelBtn = document.getElementById('pixelBtn');
-
 const resultsModal = document.getElementById('resultsModal');
 const resultsEl = document.getElementById('results');
 const closeResults = document.getElementById('closeResults');
-
+const saveLocalBtn = document.getElementById('saveLocalBtn');
+const resetLocalBtn = document.getElementById('resetLocalBtn');
+const openPixelBtn = document.getElementById('openPixelBtn');
 const pixelModal = document.getElementById('pixelModal');
 const pixelCanvas = document.getElementById('pixelCanvas');
 const pctx = pixelCanvas.getContext('2d');
 const regenPixel = document.getElementById('regenPixel');
 const downloadPixel = document.getElementById('downloadPixel');
 const closePixel = document.getElementById('closePixel');
+const creativityLabel = document.getElementById('creativityLabel');
 
-let brain = null;
-let loading = false;
+/* ============================
+   Runtime data
+   ============================ */
+let remoteBrain = null;
+let localBrain = { intents: {} }; // local-only additions
+let combinedBrain = null;         // merged view
+let markovChain = {};             // basic markov built from corpus
+let corpusTexts = [];             // texts used to create markov
+let history = [];                 // conversation history
 
-// Load brain
-async function loadBrain(){
+/* ============================
+   Utility helpers
+   ============================ */
+const safeParseJSON = (txt) => {
+  try { return JSON.parse(txt); } catch (e) { return null; }
+};
+function escapeHTML(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function addChat(who, text){
+  const d = document.createElement('div');
+  d.className = 'msg ' + (who==='player' ? 'player' : 'ai');
+  d.innerHTML = '<b>' + (who==='player' ? 'Player' : 'CubeAI') + ':</b> ' + escapeHTML(String(text));
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function addSystem(msg){
+  const d = document.createElement('div');
+  d.className = 'msg ai';
+  d.textContent = msg;
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+/* ============================
+   Loading / saving brains
+   ============================ */
+async function loadRemoteBrain(){
   try {
     const r = await fetch('/brain');
-    if(!r.ok) throw new Error('failed');
-    brain = await r.json();
-    addSystem('Brain loaded (' + Object.keys(brain.intents || {}).length + ' intents)');
-  } catch(err){
-    addSystem('Failed to load brain: ' + (err.message || err));
-    brain = { intents: {} };
+    if(!r.ok) throw new Error('failed to load /brain');
+    const txt = await r.text();
+    const j = safeParseJSON(txt);
+    if(!j || !j.brain){
+      // Accept older shape where top level is the brain object
+      remoteBrain = j && j.intents ? { intents: j.intents } : (j.brain || j);
+    } else {
+      remoteBrain = j.brain || j;
+    }
+  } catch (err){
+    console.warn('loadRemoteBrain err', err);
+    remoteBrain = { intents: {} };
   }
 }
 
-function escapeHTML(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function addSystem(msg){ const d=document.createElement('div'); d.className='msg ai'; d.textContent=msg; chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight; }
-function addChat(who,text,meta){
-  const d=document.createElement('div');
-  d.className='msg ' + (who === 'player' ? 'player' : 'ai');
-  d.innerHTML = `<b>${who === 'player' ? 'Player' : 'CubeAI'}:</b> ${escapeHTML(text)}` + (meta ? ` <span style="color:#9fb1d6;font-size:12px"> ${escapeHTML(meta)}</span>` : '');
-  chatEl.appendChild(d);
-  chatEl.scrollTop=chatEl.scrollHeight;
+function loadLocalBrain(){
+  try {
+    const t = localStorage.getItem(LOCAL_KEY);
+    if(t) localBrain = JSON.parse(t);
+    else localBrain = { intents: {} };
+  } catch {
+    localBrain = { intents: {} };
+  }
 }
 
-// intent detection
+function saveLocalBrain(){
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(localBrain));
+    addSystem('Local brain saved.');
+  } catch(e){
+    addSystem('Save failed: ' + e.message);
+  }
+}
+
+function resetLocalBrain(){
+  localBrain = { intents: {} };
+  saveLocalBrain();
+  rebuildCombined();
+  addSystem('Local brain reset.');
+}
+
+/* ============================
+   Merge & rebuild view + markov
+   ============================ */
+function rebuildCombined(){
+  combinedBrain = { intents: {} };
+  // clone remote
+  const remoteIntents = (remoteBrain && remoteBrain.intents) ? remoteBrain.intents : {};
+  for(const k of Object.keys(remoteIntents)){
+    combinedBrain.intents[k] = {
+      triggers: Array.isArray(remoteIntents[k].triggers) ? [...remoteIntents[k].triggers] : [],
+      responses: Array.isArray(remoteIntents[k].responses) ? [...remoteIntents[k].responses] : []
+    };
+  }
+  // merge local (override/add)
+  for(const k of Object.keys(localBrain.intents)){
+    if(!combinedBrain.intents[k]) combinedBrain.intents[k] = { triggers: [], responses: [] };
+    const li = localBrain.intents[k];
+    if(Array.isArray(li.triggers)) combinedBrain.intents[k].triggers.push(...li.triggers);
+    if(Array.isArray(li.responses)) combinedBrain.intents[k].responses.push(...li.responses);
+  }
+
+  // rebuild corpus for Markov
+  corpusTexts = [];
+  for(const k in combinedBrain.intents){
+    const it = combinedBrain.intents[k];
+    if(it.responses) corpusTexts.push(...it.responses.filter(Boolean).map(String));
+    if(it.triggers) corpusTexts.push(...it.triggers.filter(Boolean).map(String));
+  }
+  // also include recent history texts
+  corpusTexts.push(...history.filter(h=>h.who==='player').map(h=>h.text).slice(-200));
+  buildMarkovChain();
+}
+
+/* ============================
+   Lightweight Markov chain
+   ============================ */
+function buildMarkovChain(){
+  markovChain = {};
+  const sep = ' ';
+  for(const text of corpusTexts){
+    const tokens = String(text).split(/\s+/).filter(Boolean);
+    for(let i=0;i<tokens.length-1;i++){
+      const key = tokens[i].toLowerCase();
+      const next = tokens[i+1];
+      if(!markovChain[key]) markovChain[key]=[];
+      markovChain[key].push(next);
+    }
+  }
+}
+
+// generate length words from markov (fallback safe)
+function generateMarkov(maxWords=20){
+  const keys = Object.keys(markovChain);
+  if(keys.length===0) return '';
+  let k = keys[Math.floor(Math.random()*keys.length)];
+  const out = [k];
+  for(let i=1;i<maxWords;i++){
+    const arr = markovChain[k];
+    if(!arr || arr.length===0) break;
+    const next = arr[Math.floor(Math.random()*arr.length)];
+    out.push(next);
+    k = next.toLowerCase();
+  }
+  return out.join(' ');
+}
+
+/* ============================
+   Intent prediction (simple)
+   ============================ */
 function predictIntent(text){
-  if(!brain || !brain.intents) return 'fallback';
+  if(!combinedBrain || !combinedBrain.intents) return 'fallback';
   const t = text.toLowerCase();
-  for(const [k,v] of Object.entries(brain.intents)){
-    if(!v.triggers) continue;
-    for(const trig of v.triggers){
-      try {
-        if(!trig) continue;
-        if(t.includes(String(trig).toLowerCase())) return k;
-      } catch(e){}
+  // exact helpful rules first (math, pixel)
+  if(t.match(/\b(?:\d+\s*[\+\-\*\/]\s*\d+|\bcalculate\b|\bsolve\b|\bwhat is\b|\bcompute\b)\b/)) return 'math';
+  // iterate intents, prefer longer triggers to reduce collisions
+  const intents = Object.entries(combinedBrain.intents);
+  // sort by longest trigger first
+  intents.sort((a,b)=>{
+    const la = (a[1].triggers||[]).reduce((m,x)=>Math.max(m,(x||'').length),0);
+    const lb = (b[1].triggers||[]).reduce((m,x)=>Math.max(m,(x||'').length),0);
+    return lb - la;
+  });
+  for(const [name, obj] of intents){
+    if(!obj.triggers) continue;
+    for(const trig of obj.triggers){
+      if(typeof trig !== 'string') continue;
+      const tt = trig.toLowerCase().trim();
+      if(!tt) continue;
+      if(t.includes(tt)) return name;
     }
   }
   return 'fallback';
 }
 
-// show results modal
-function showResults(items){
-  resultsEl.innerHTML = '';
-  if(!items || items.length === 0){
-    resultsEl.innerHTML = '<div class="resultItem">No results.</div>';
-  } else {
-    items.forEach(r=>{
-      const el = document.createElement('div');
-      el.className = 'resultItem';
-      el.innerHTML = `<div style="font-weight:700">${escapeHTML(r.title||'Result')}</div>
-                      <div style="color:#bfcbdc">${escapeHTML(r.text||'')}</div>
-                      <div style="margin-top:6px"><a class="sourceLink" href="${escapeHTML(r.url||'#')}" target="_blank">${escapeHTML(r.url||'Open link')}</a></div>`;
-      resultsEl.appendChild(el);
-    });
+/* ============================
+   Compose reply (Smart mode)
+   - If canned response exists: sometimes use it, sometimes mix with Markov
+   - If no canned: generate Markov-based reply or use search.
+   ============================ */
+function composeReply(intent, incomingText){
+  const intentObj = combinedBrain.intents[intent] || { responses: [] };
+  const canned = Array.isArray(intentObj.responses) ? intentObj.responses.filter(Boolean) : [];
+  // If math: try evaluate exactly
+  if(intent === 'math'){
+    try {
+      const safe = incomingText.replace(/[^0-9+\-*/(). xX%]/g,'').replace(/x/gi,'*');
+      /* eslint-disable no-new-func */
+      const val = Function('"use strict";return ('+safe+')')();
+      return `Here's what I got:\n${String(val)}`;
+    } catch {
+      // fallthrough to other composition
+    }
   }
-  resultsModal.classList.add('show');
-  resultsModal.setAttribute('aria-hidden','false');
+
+  // If pixel intent: direct command
+  if(intent === 'pixel_art' || intent === 'pixel' || incomingText.toLowerCase().includes('pixel')){
+    // We'll just return a signal string and UI will open pixel modal
+    return '[__PIXEL__GENERATE__]';
+  }
+
+  // If we have canned and creativity weight low, prefer canned:
+  if(canned.length > 0){
+    // choose randomly between pure canned, mixed, or fully generated
+    const r = Math.random();
+    if(r < (1 - creativityWeight) + 0.15){ // slightly favor canned in Smart mode
+      // choose canned
+      return canned[Math.floor(Math.random()*canned.length)];
+    } else if(r < (1 - creativityWeight) + 0.45){
+      // combine canned + generated tail
+      const base = canned[Math.floor(Math.random()*canned.length)];
+      const tail = generateMarkov(12);
+      return `${base}\n\n${tail}`;
+    } else {
+      // mostly generated
+      return generateMarkov(20);
+    }
+  } else {
+    // no canned -> generate
+    const generated = generateMarkov(18);
+    return generated || "I don't have a direct answer — try 'search: your query' to look it up.";
+  }
 }
 
-// search proxy (server)
+/* ============================
+   Web search helper (proxy /search)
+   ============================ */
 async function doSearch(q){
   try {
-    const r = await fetch('/search?q=' + encodeURIComponent(q));
+    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
     if(!r.ok) throw new Error('search failed');
-    const j = await r.json();
-    return j.results || [];
-  } catch (e) {
-    console.error("search error", e);
+    const js = await r.json();
+    return js.results || [];
+  } catch (e){
+    console.warn('search error', e);
     return [];
   }
 }
 
-// generate via server Markov composer
-async function doGenerate(prompt, maxTokens = 40){
-  try {
-    const r = await fetch('/generate', {
-      method: 'POST',
-      headers: {'content-type':'application/json'},
-      body: JSON.stringify({ prompt, maxTokens })
-    });
-    if(!r.ok) {
-      const t = await r.text().catch(()=>'');
-      throw new Error('generate failed: ' + (t || r.status));
+/* ============================
+   Command parsing: teach: and remember:
+   - teach: intentName => response
+   - teach: trigger => response  (creates/append to pixel_art etc)
+   - remember: key = value (stored in local memory object)
+   ============================ */
+let localMemory = {}; // key -> value (persisted in same local brain object under _memory)
+
+function handleTeachCommand(text){
+  // various formats:
+  // teach: intentName => response
+  // teach: trigger => response  (we will push to fallback intent or new)
+  // teach: trigger | response (separator =>)
+  const body = text.replace(/^teach:\s*/i,'').trim();
+  const parts = body.split(/\s*=>\s*/);
+  if(parts.length < 2){
+    addSystem('teach: format: teach: trigger => response');
+    return false;
+  }
+  const trigger = parts[0].trim();
+  const response = parts.slice(1).join(' => ').trim();
+  if(!trigger || !response){ addSystem('teach: invalid trigger or response'); return false; }
+  // Decide intent: if trigger matches existing intent name, add response; else create new intent named 'player_custom'
+  let intentName = null;
+  // if user provided intent like pixel_art:hello use "intentName:trigger"
+  if(trigger.includes(':')){
+    const [inName, trg] = trigger.split(':').map(s=>s.trim());
+    intentName = inName || 'custom';
+    // add trigger as trg
+    if(!localBrain.intents[intentName]) localBrain.intents[intentName] = { triggers: [], responses: [] };
+    if(trg) localBrain.intents[intName].triggers = localBrain.intents[intName].triggers || [];
+    localBrain.intents[intentName].triggers.push(trg);
+    localBrain.intents[intentName].responses.push(response);
+  } else {
+    // try to use existing intent whose name equals trigger
+    if(combinedBrain.intents[trigger]){
+      intentName = trigger;
+      localBrain.intents[intentName] = localBrain.intents[intentName] || { triggers: [], responses: [] };
+      localBrain.intents[intentName].responses.push(response);
+    } else {
+      // fallback: create intent named "player_custom" or "custom_<n>"
+      intentName = 'custom';
+      if(!localBrain.intents[intentName]) localBrain.intents[intentName] = { triggers: [], responses: [] };
+      localBrain.intents[intentName].triggers.push(trigger);
+      localBrain.intents[intentName].responses.push(response);
     }
-    const j = await r.json();
-    return j;
-  } catch (e) {
-    console.error("generate error", e);
-    return { error: e.message || String(e) };
+  }
+  saveLocalBrain();
+  rebuildCombined();
+  addSystem(`Taught local intent "${intentName}".`);
+  return true;
+}
+
+function handleRememberCommand(text){
+  const body = text.replace(/^remember:\s*/i,'').trim();
+  const parts = body.split(/\s*=\s*/);
+  if(parts.length < 2){ addSystem('remember: format: remember: key = value'); return false; }
+  const key = parts[0].trim();
+  const value = parts.slice(1).join(' = ').trim();
+  if(!key){ addSystem('remember: key invalid'); return false; }
+  localMemory[key] = value;
+  // persist in localBrain under _memory
+  localBrain._memory = localBrain._memory || {};
+  localBrain._memory[key] = value;
+  saveLocalBrain();
+  addSystem(`Remembered "${key}"`);
+  return true;
+}
+
+/* ============================
+   Search result -> "Use as source"
+   When user clicks "Use as source", add text to corpus and save to local brain under _sources
+   ============================ */
+function renderSearchResults(results){
+  resultsEl.innerHTML = '';
+  if(!results.length){
+    resultsEl.innerHTML = '<div class="small muted">No results found.</div>';
+    return;
+  }
+  for(const r of results){
+    const it = document.createElement('div');
+    it.className = 'resultItem';
+    // title, snippet, link
+    it.innerHTML = `<div style="font-weight:700">${escapeHTML(r.title||'Untitled')}</div>
+      <div style="color:#bfcbdc;margin:8px 0">${escapeHTML(r.text || r.snippet || '')}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+         <a class="sourceLink" href="${escapeHTML(r.url||'#')}" target="_blank">Open</a>
+         <button class="small useSource">Use as source</button>
+      </div>`;
+    // attach handler for Use as source
+    (function(localR){
+      setTimeout(()=>{ // ensure element exists
+        const btn = it.querySelector('.useSource');
+        btn.onclick = () => {
+          // add to local sources & corpus
+          localBrain._sources = localBrain._sources || [];
+          localBrain._sources.push({url: localR.url, text: localR.text || localR.snippet || ''});
+          saveLocalBrain();
+          // add into corpus and rebuild markov
+          if(localR.text) corpusTexts.push(localR.text);
+          buildMarkovChain();
+          addSystem('Added source to local brain and corpus.');
+        };
+      },0);
+    })(r);
+
+    resultsEl.appendChild(it);
+  }
+  resultsModal.classList.add('show');
+}
+
+/* ============================
+   Pixel art generator
+   ============================ */
+function randomColor(){
+  const colors = ["#00eaff","#0dc9f7","#005577","#33ffff","#99ffff","#ffdc7d","#ffd1b3","#ffb3b3"];
+  return colors[Math.floor(Math.random()*colors.length)];
+}
+
+function generatePixelArt(){
+  pctx.clearRect(0,0,16,16);
+  for(let y=0;y<16;y++){
+    for(let x=0;x<8;x++){
+      if(Math.random()>0.45){
+        const c = randomColor();
+        pctx.fillStyle = c;
+        pctx.fillRect(x,y,1,1);
+        pctx.fillRect(15-x,y,1,1);
+      }
+    }
   }
 }
 
-// handle a user message
-async function handleMessage(text){
+function openPixelModal(){
+  pixelModal.classList.add('show');
+  generatePixelArt();
+}
+function closePixel(){
+  pixelModal.classList.remove('show');
+}
+function downloadPixel(){
+  const a = document.createElement('a');
+  a.href = pixelCanvas.toDataURL();
+  a.download = 'pixel.png';
+  a.click();
+}
+
+/* ============================
+   Main message handler
+   ============================ */
+async function handleMessage(rawText){
+  const text = String(rawText||'').trim();
   if(!text) return;
   addChat('player', text);
-  inputEl.value = '';
-  inputEl.focus();
+  history.push({who:'player', text});
 
-  // forced search syntax
-  if(text.toLowerCase().startsWith('search:')){
-    const q = text.slice(7).trim();
-    addChat('ai', 'Searching...' , '');
+  // special commands
+  if(/^teach:/i.test(text)){
+    const ok = handleTeachCommand(text);
+    if(ok) addChat('ai','Okay — I learned that locally.');
+    return;
+  }
+  if(/^remember:/i.test(text)){
+    const ok = handleRememberCommand(text);
+    if(ok) addChat('ai','Got it — remembered locally.');
+    return;
+  }
+  if(/^search:/i.test(text)){
+    const q = text.replace(/^search:/i,'').trim();
+    addChat('ai','Searching: ' + q);
     const results = await doSearch(q);
-    if(results[0]) addChat('ai', results[0].text || 'Result found. See popup.');
-    showResults(results);
+    if(results && results[0] && (results[0].text || results[0].snippet)){
+      // show first text summary as quick answer
+      addChat('ai', results[0].text || results[0].snippet || 'Found results.');
+    } else {
+      addChat('ai','No strong summary — see results.');
+    }
+    renderSearchResults(results);
     return;
   }
 
-  // detect simple intent
+  // predict intent
   const intent = predictIntent(text);
-  if(intent && brain.intents[intent] && intent !== 'fallback'){
-    // if intent has canned responses, pick one but append a generated continuation
-    const pool = brain.intents[intent].responses || [];
-    if(pool.length > 0){
-      const base = pool[Math.floor(Math.random()*pool.length)];
-      // generate small addition
-      addChat('ai', base + ' '); // temporarily show base
-      // attempt a continuation from server
-      const gen = await doGenerate(base, 30);
-      if(gen && gen.reply) {
-        // replace last AI message by appending continuation (simple strategy: append)
-        addChat('ai', gen.reply);
+  // compose
+  const composed = composeReply(intent, text);
+
+  if(composed === '[__PIXEL__GENERATE__]'){
+    // open pixel modal and report back
+    addChat('ai','Generating pixel sprite...');
+    openPixelModal();
+    return;
+  }
+
+  // If fallback and we have low confidence: try a web search and propose
+  if(intent === 'fallback' && Math.random() < 0.6){
+    addChat('ai','I\'m not sure — searching the web for help...');
+    const results = await doSearch(text);
+    if(results && results[0]){
+      // add top result summary into local corpus automatically (but do not overwrite brain)
+      if(results[0].text) {
+        corpusTexts.push(results[0].text);
+        buildMarkovChain();
       }
+      const quick = results[0].text || results[0].snippet || 'Found something — see results.';
+      addChat('ai', quick);
+      renderSearchResults(results);
+      return;
+    } else {
+      // fallback to composed generated answer
+      const gen = composeReply('generated', text);
+      addChat('ai', gen);
+      history.push({who:'ai', text: gen});
       return;
     }
   }
 
-  // else: request generation
-  // show spinner indicator
-  const spinnerId = 'spinner-' + Date.now();
-  addChat('ai', 'Composing reply... ' + ''); // placeholder
-  const gen = await doGenerate(text, 60);
-  if(gen && gen.reply){
-    addChat('ai', gen.reply);
-  } else if(gen && gen.error){
-    addChat('ai', "I couldn't compose an answer: " + gen.error);
-    // fallback to search automatically
-    const results = await doSearch(text);
-    if(results[0]) {
-      addChat('ai', results[0].text || 'Found something — see popup.');
-      showResults(results);
-    }
-  } else {
-    addChat('ai', "I don't know that yet. Try 'search: " + text + "'");
-  }
+  // otherwise, send composed reply (which may include canned or generated)
+  addChat('ai', composed);
+  history.push({who:'ai', text: composed});
 }
 
-// event wiring
-sendBtn.onclick = ()=> handleMessage(inputEl.value.trim());
-inputEl.addEventListener('keydown', e=> { if(e.key === 'Enter'){ sendBtn.click(); e.preventDefault(); }});
-closeResults.onclick = ()=> { resultsModal.classList.remove('show'); resultsModal.setAttribute('aria-hidden','true'); };
+/* ============================
+   Wiring UI events
+   ============================ */
+sendBtn.onclick = () => { handleMessage(inputEl.value.trim()); inputEl.value=''; inputEl.focus(); };
+inputEl.addEventListener('keydown', e => { if(e.key === 'Enter'){ sendBtn.click(); e.preventDefault(); }});
+closeResults.onclick = () => resultsModal.classList.remove('show');
+saveLocalBtn.onclick = saveLocalBrain;
+resetLocalBtn.onclick = () => { if(confirm('Reset local learned brain?')) resetLocalBrain(); };
 
-// pixel art controls
-function randColor(){ const colors = ["#00eaff","#0dc9f7","#005577","#33ffff","#99ffff","#ffb86b","#ffd9a6"]; return colors[Math.floor(Math.random()*colors.length)]; }
-function generatePixel(){ pctx.clearRect(0,0,16,16); for(let y=0;y<16;y++){ for(let x=0;x<8;x++){ if(Math.random()>0.45){ const c=randColor(); pctx.fillStyle=c; pctx.fillRect(x,y,1,1); pctx.fillRect(15-x,y,1,1); } } } }
-regenPixel.onclick = ()=> generatePixel();
-downloadPixel.onclick = ()=>{ const a=document.createElement('a'); a.download='pixel.png'; a.href = pixelCanvas.toDataURL(); a.click(); }
-closePixel.onclick = ()=> pixelModal.classList.remove('show');
-pixelBtn.onclick = ()=> { pixelModal.classList.add('show'); generatePixel(); }
+openPixelBtn.onclick = openPixelModal;
+regenPixel.onclick = generatePixelArt;
+downloadPixel.onclick = downloadPixel;
+closePixel.onclick = closePixel;
 
-loadBrain();
+/* creativity control: click badge to cycle weight between 0.2,0.5,0.8 */
+creativityLabel.parentElement.addEventListener('click', ()=>{
+  const weights = [0.2, 0.5, 0.8];
+  let idx = weights.indexOf(creativityWeight);
+  idx = (idx + 1) % weights.length;
+  creativityWeight = weights[idx];
+  creativityLabel.textContent = (creativityWeight===0.2?'Calm':creativityWeight===0.5?'Smart':'Wild') + ` (${creativityWeight})`;
+});
 
+/* ============================
+   Startup: load brains & build state
+   ============================ */
+(async function init(){
+  addSystem('Loading brain...');
+  await loadRemoteBrain();
+  loadLocalBrain();
+  // if localBrain has _memory, pull into localMemory
+  if(localBrain._memory) localMemory = localBrain._memory;
+  rebuildCombined();
+  addSystem('Brain loaded (' + Object.keys(combinedBrain.intents||{}).length + ' intents).');
+  creativityLabel.textContent = 'Smart (' + SMART_CREATIVITY + ')';
+  creativityWeight = SMART_CREATIVITY;
+})();
 </script>
 </body>
 </html>
