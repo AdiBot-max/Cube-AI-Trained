@@ -128,9 +128,14 @@ function downloadPixelArt(){
   link.click();
 }
 
-document.getElementById('regenPixel').onclick = generatePixelArt;
-document.getElementById('downloadPixel').onclick = downloadPixelArt;
-document.getElementById('closePixel').onclick = closePixelArt;
+// Pixel modal buttons
+document.getElementById("regenPixelBtn").onclick = generatePixelArt;
+document.getElementById("downloadPixelBtn").onclick = downloadPixelArt;
+document.getElementById("closePixelBtn").onclick = closePixelArt;
+
+// Search modal close button
+document.getElementById("closeResultsBtn").onclick = () =>
+  resultsModal.classList.remove("show");
 
 /* ----------------------------------------------------
    Chat Helpers
