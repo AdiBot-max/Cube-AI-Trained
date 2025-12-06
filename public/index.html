@@ -184,15 +184,17 @@ async function handleMessage(text){
   const i=intent(text);
   const obj=brain.intents[i];
 
-  if(i==="fallback"){
-    addChat("ai","Let me look that up...");
-    const results=await doSearch(text);
-    if(results[0]) addChat("ai",results[0].text);
+  if (i === "fallback") {
+  if (text.endsWith("?") || text.toLowerCase().includes("how")) {
+    addChat("ai", "Searching internet...");
+    const results = await doSearch(text);
+    if (results[0]) addChat("ai", results[0].text);
     showResults(results);
-  }else{
-    const options=obj.responses;
-    addChat("ai",options[Math.floor(Math.random()*options.length)]);
+  } else {
+    addChat("ai", "Hmm... can you explain more?");
   }
+}
+
 }
 
 // EVENTS
