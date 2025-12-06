@@ -1,5 +1,13 @@
 {
     "intents": {
+        "create_code": {
+  "triggers": ["code", "game", "make game", "make code", "program"],
+  "responses": [
+    "Sure! Here's a simple game template:",
+    "<!DOCTYPE html><html><body><h1>Click Game</h1><p>Click the button!</p><button onclick='alert(`You clicked!`)'>Click me</button></body></html>"
+  ]
+}
+
         "pixel_art": {
   "triggers": ["pixel", "image", "sprite", "generate image", "draw"],
   "responses": ["Generating a pixel sprite!"]
