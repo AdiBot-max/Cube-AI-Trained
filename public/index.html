@@ -62,96 +62,41 @@
   <button id="regenPixelBtn">New Sprite</button>
   <button id="downloadPixelBtn">Download</button>
 </div>
-
 <script>
-// UI ELEMENTS
-const chatEl = document.getElementById("chat");
-const inputEl = document.getElementById("userInput");
-const sendBtn = document.getElementById("sendBtn");
-const resultsModal = document.getElementById("resultsModal");
-const resultsEl = document.getElementById("results");
-const closeResultsBtn = document.getElementById("closeResultsBtn");
+/* ----------------------------------------------------
+   UI + DOM
+---------------------------------------------------- */
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const resultsModal = document.getElementById('resultsModal');
+const resultsEl = document.getElementById('results');
+const closeResults = document.getElementById('closeResults');
 
-const pixelModal = document.getElementById("pixelModal");
-const pixelCanvas = document.getElementById("pixelCanvas");
-const regenPixelBtn = document.getElementById("regenPixelBtn");
-const downloadPixelBtn = document.getElementById("downloadPixelBtn");
-const closePixelBtn = document.getElementById("closePixelBtn");
+const pixelModal = document.getElementById('pixelModal');
+const pixelCanvas = document.getElementById('pixelCanvas');
+const pctx = pixelCanvas.getContext('2d');
+pixelCanvas.width = 16;
+pixelCanvas.height = 16;
+pixelCanvas.style.width = "256px";
+pixelCanvas.style.imageRendering = "pixelated";
 
-let brain = null;
+let brain;
 
-// LOAD BRAIN
-async function loadBrain(){
-  try{
-    const r=await fetch("/brain");
-    brain=await r.json();
-    addChat("ai","Brain loaded! Ask me anything!");
-  }catch{
-    addChat("ai","⚠ Brain not found!");
-  }
+/* ----------------------------------------------------
+   Pixel Art Generator
+---------------------------------------------------- */
+function randomColor(){
+  const colors = ["#00eaff","#0dc9f7","#005577","#33ffff","#99ffff"];
+  return colors[Math.floor(Math.random()*colors.length)];
 }
 
-// CHAT UI
-function addChat(who,msg){
-  const el=document.createElement("div");
-  el.className="msg " + (who==="player"?"player":"ai");
-  el.innerHTML = `<b>${who==="player"?"You":"CubeAI"}:</b> ${escapeHTML(msg)}`;
-  chatEl.appendChild(el);
-  chatEl.scrollTop=chatEl.scrollHeight;
-}
-
-function escapeHTML(x){
-  return x.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-// BASIC INTENT MATCHER
-function intent(text){
-  const t=text.toLowerCase();
-  for(const name in brain.intents){
-    const obj=brain.intents[name];
-    if(obj.triggers){
-      for(const trig of obj.triggers){
-        if(t.includes(trig.toLowerCase())) return name;
-      }
-    }
-  }
-  return "fallback";
-}
-
-// SEARCH API
-async function doSearch(q){
-  try{
-    const r=await fetch(`/search?q=${encodeURIComponent(q)}`);
-    const js=await r.json();
-    return js.results||[];
-  }catch{
-    return[];
-  }
-}
-function showResults(items){
-  resultsEl.innerHTML="";
-  items.forEach(r=>{
-    const d=document.createElement("div");
-    d.className="resultItem";
-    d.innerHTML=`
-      <strong>${escapeHTML(r.title)}</strong><br>
-      <span style="color:#ccc">${escapeHTML(r.text?.slice(0,200)||"No preview")}</span><br>
-      <a href="${r.url}" target="_blank">${escapeHTML(r.url)}</a>
-    `;
-    resultsEl.appendChild(d);
-  });
-  resultsModal.classList.add("show");
-}
-
-// PIXEL ART ENGINE
-const pctx=pixelCanvas.getContext("2d");
-function randomC(){return`#${Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,"0")}`;}
-function generatePixel(){
+function generatePixelArt(){
   pctx.clearRect(0,0,16,16);
   for(let y=0;y<16;y++){
     for(let x=0;x<8;x++){
-      if(Math.random()>0.45){
-        const c=randomC();
+      if(Math.random()>0.4){
+        const c=randomColor();
         pctx.fillStyle=c;
         pctx.fillRect(x,y,1,1);
         pctx.fillRect(15-x,y,1,1);
@@ -159,53 +104,167 @@ function generatePixel(){
     }
   }
 }
-function openPixel(){ pixelModal.classList.add("show"); generatePixel(); }
-function closePixel(){ pixelModal.classList.remove("show"); }
-function downloadPixel(){ const a=document.createElement("a"); a.download="pixel.png"; a.href=pixelCanvas.toDataURL(); a.click(); }
 
-// MAIN HANDLER
+function openPixelArt(){
+  pixelModal.classList.add("show");
+  generatePixelArt();
+}
+
+function closePixelArt(){
+  pixelModal.classList.remove("show");
+}
+
+function downloadPixelArt(){
+  const link=document.createElement('a');
+  link.download="pixel.png";
+  link.href=pixelCanvas.toDataURL();
+  link.click();
+}
+
+document.getElementById('regenPixel').onclick = generatePixelArt;
+document.getElementById('downloadPixel').onclick = downloadPixelArt;
+document.getElementById('closePixel').onclick = closePixelArt;
+
+/* ----------------------------------------------------
+   Chat Helpers
+---------------------------------------------------- */
+function escapeHTML(x){
+  return x.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function addChat(role, msg){
+  const d=document.createElement('div');
+  d.className='msg ' + (role==='player'?'player':'ai');
+  d.innerHTML = `<b>${role==="player"?"Player":"CubeAI"}:</b> ${escapeHTML(msg)}`;
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+function addSystem(msg){
+  const d=document.createElement('div');
+  d.className='msg ai';
+  d.textContent=msg;
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+/* ----------------------------------------------------
+   Data Load
+---------------------------------------------------- */
+async function loadBrain(){
+  try{
+    const res = await fetch("/brain");
+    brain = await res.json();
+    addSystem("Brain ready!");
+  }catch{
+    addSystem("⚠ Brain not found!");
+  }
+}
+
+/* ----------------------------------------------------
+   Search + Show Modal
+---------------------------------------------------- */
+async function doSearch(q){
+  try{
+    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    if(!r.ok) throw new Error("Search fail");
+    const j = await r.json();
+    return j.results || [];
+  }catch{
+    return [];
+  }
+}
+
+function showResults(items){
+  resultsEl.innerHTML = "";
+  items.forEach(r=>{
+    const el=document.createElement("div");
+    el.className="resultItem";
+    el.innerHTML = `
+      <strong>${escapeHTML(r.title || "")}</strong><br>
+      <div style="color:#bbb">${escapeHTML(r.text || "")}</div>
+      <div style="margin-top:4px"><a href="${r.url}" target="_blank">${escapeHTML(r.url)}</a></div>`;
+    resultsEl.appendChild(el);
+  });
+  resultsModal.classList.add("show");
+}
+
+/* ----------------------------------------------------
+   Intent Matcher
+---------------------------------------------------- */
+function predictIntent(text){
+  const t=text.toLowerCase();
+  for(const k in brain.intents){
+    const data=brain.intents[k];
+    for(const trig of (data.triggers||[])){
+      if(t.includes(trig.toLowerCase())) return k;
+    }
+  }
+  return "fallback";
+}
+
+/* ----------------------------------------------------
+   NEW Logic:
+   1️⃣ Try generate
+   2️⃣ If tiny/weird → intent response
+   3️⃣ If no match → search
+---------------------------------------------------- */
 async function handleMessage(text){
-  if(!text)return;
-  addChat("player",text);
+  if(!text.trim()) return;
 
-  if(text.toLowerCase().includes("pixel")){
-    addChat("ai","🎨 Generating pixel art!");
-    return openPixel();
+  addChat("player", text);
+
+  // Pixel Trigger (manual)
+  if (text.toLowerCase().includes("pixel")) {
+    addChat("ai", "Generating pixel sprite...");
+    openPixelArt();
+    return;
   }
 
-  if(text.toLowerCase().startsWith("search:")){
-    const q=text.slice(7).trim();
-    addChat("ai","🔍 Searching...");
-    const results=await doSearch(q);
-    if(results[0]) addChat("ai",results[0].text);
-    return showResults(results);
+  addChat("ai","Composing reply...");
+
+  // 1️⃣ Generate first
+  try {
+    const res = await fetch("/generate", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ prompt:text, maxTokens:60 })
+    });
+    const js = await res.json();
+    const reply = js.reply?.trim();
+
+    if(reply && reply.length > 12){
+      addChat("ai", reply);
+      return;
+    }
+  } catch(err){}
+
+  // 2️⃣ Intent fallback
+  const intent = predictIntent(text);
+  const obj = brain.intents[intent];
+  if(obj?.responses?.length){
+    const r = obj.responses[Math.floor(Math.random()*obj.responses.length)];
+    addChat("ai", r);
+    return;
   }
 
-  const i=intent(text);
-  const obj=brain.intents[i];
-
-  if (i === "fallback") {
-  if (text.endsWith("?") || text.toLowerCase().includes("how")) {
-    addChat("ai", "Searching internet...");
-    const results = await doSearch(text);
-    if (results[0]) addChat("ai", results[0].text);
-    showResults(results);
-  } else {
-    addChat("ai", "Hmm... can you explain more?");
-  }
+  // 3️⃣ Web search fallback
+  addChat("ai", "Let me check the web...");
+  const results = await doSearch(text);
+  if(results[0]) addChat("ai", results[0].text);
+  showResults(results);
 }
 
-}
+/* ----------------------------------------------------
+   UI Events
+---------------------------------------------------- */
+sendBtn.onclick = ()=>{ handleMessage(inputEl.value); inputEl.value=""; inputEl.focus();};
+inputEl.onkeydown = e=>{ if(e.key==="Enter") sendBtn.click(); };
+closeResults.onclick = ()=>resultsModal.classList.remove("show");
 
-// EVENTS
-sendBtn.onclick=()=>{handleMessage(inputEl.value);inputEl.value="";};
-inputEl.onkeydown=e=>{if(e.key==="Enter")sendBtn.onclick();};
-closeResultsBtn.onclick=()=>resultsModal.classList.remove("show");
-
-regenPixelBtn.onclick=generatePixel;
-downloadPixelBtn.onclick=downloadPixel;
-closePixelBtn.onclick=closePixel;
-
+/* ----------------------------------------------------
+   Init
+---------------------------------------------------- */
 loadBrain();
 </script>
 </body>
