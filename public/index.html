@@ -221,75 +221,55 @@ function predictIntent(text){
    2️⃣ If tiny/weird → intent response
    3️⃣ If no match → search
 ---------------------------------------------------- */
-async function handleMessage(text){
-  if(!text.trim()) return;
-
+async function handleMessage(text) {
+  if (!text.trim()) return;
   addChat("player", text);
+
   const lower = text.toLowerCase();
 
-  // 0️⃣ Safety
-  if(lower.includes("hack") || lower.includes("password")){
-    addChat("ai", "I can’t help with that — let’s try something else!");
-    return;
-  }
-
-  // 🖼 Pixel command
-  if(lower.includes("pixel")){
+  // Pixel art should always be instant
+  if (lower.includes("pixel")) {
     addChat("ai", "Generating pixel sprite...");
     openPixelArt();
     return;
   }
 
-  // 🔍 Search command (explicit)
-  if(lower.startsWith("search:")){
-    const query = text.slice(7).trim();
-    addChat("ai", "Searching...");
-    const results = await doSearch(query);
-    if(results[0]) addChat("ai", results[0].text);
-    showResults(results);
-    return;
-  }
+  addChat("ai", "Composing reply...");
 
-  addChat("ai","Composing reply...");
+  // 1️⃣ Intent first — if strong match → respond immediately
+  const intent = predictIntent(text);
+  const obj = brain.intents[intent];
 
-  // 1️⃣ Generate with Markov first
-  try{
-    const r = await fetch("/generate",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json"},
-      body:JSON.stringify({ prompt:text, maxTokens:80 })
-    });
-    const j = await r.json();
-    const reply = j.reply?.trim();
-
-    if(reply && reply.length > 20){
+  if (obj && obj.responses && obj.responses.length) {
+    const reply = obj.responses[Math.floor(Math.random() * obj.responses.length)];
+    if (reply) {
       addChat("ai", reply);
       return;
     }
-  }catch{}
-
-  // 2️⃣ Intent-based fallback
-  const intent = predictIntent(text);
-  const obj = brain.intents[intent];
-  if(obj?.responses?.length > 0){
-    const pick = obj.responses[Math.floor(Math.random()*obj.responses.length)];
-    addChat("ai", pick);
-    return;
   }
 
-  // 3️⃣ Auto-search if everything failed
-  if(lower.endsWith("?") || lower.startsWith("what") || lower.startsWith("who")){
-    addChat("ai", "Let me check...");
-    const results = await doSearch(text);
-    if(results[0]) addChat("ai", results[0].text);
-    showResults(results);
-    return;
-  }
+  // 2️⃣ AI Generation fallback (only if intent failed)
+  try {
+    const res = await fetch("/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: text, maxTokens: 80 })
+    });
+    const js = await res.json();
+    const reply = js.reply?.trim();
 
-  // Ultimate fallback
-  addChat("ai","Hmm… I am still learning from my brain. Try rephrasing!");
+    if (reply && reply.length > 10) {
+      addChat("ai", reply);
+      return;
+    }
+  } catch (err) {}
+
+  // 3️⃣ Last — Web search
+  addChat("ai", "Searching...");
+  const results = await doSearch(text);
+  if (results[0]) addChat("ai", results[0].text);
+  showResults(results);
 }
-
 
 /* ----------------------------------------------------
    UI Events
