@@ -1,85 +1,57 @@
 {
-  "intents": {
-    "greet": {
-      "triggers": ["hi", "hello", "hey", "yo", "sup", "greetings"],
-      "responses": [
-        "Hey there! How's your day going?",
-        "Hello! Ready to chat or build something?",
-        "Yo! What's on your mind?",
-        "Glad you're here! Need help with anything?"
-      ]
-    },
-    "math": {
-      "triggers": ["calculate", "solve", "+", "-", "=", "math", "?", "how much"],
-      "responses": [
-        "Sure! Let me do the math:",
-        "Okay, calculating:",
-        "Let me solve that for you:",
-        "Numbers time! Here's the result:"
-      ]
-    },
-    "code": {
-      "triggers": ["html", "css", "js", "game", "code", "program"],
-      "responses": [
-        "Coding is my favorite! Want web, game, or script?",
-        "I can help you code! What do you want to build?",
-        "Let’s make something awesome with code!",
-        "A new game? What type: clicker, platformer, shooter?"
-      ]
-    },
-    "search": {
-      "triggers": ["search", "look up", "find"],
-      "responses": [
-        "Searching the web… hang tight!",
-        "Let me check online for you!",
-        "Looking up that info!",
-        "Web search initiated!"
-      ]
-    },
-    "pixel_art": {
-      "triggers": ["pixel", "sprite", "draw", "image"],
-      "responses": [
-        "Generating a cool pixel sprite!",
-        "Pixel magic time! Creating art…",
-        "Let’s draw something blocky!",
-        "Pixel creativity unlocked!"
-      ]
-    },
-    "games": {
-      "triggers": ["game", "minecraft", "roblox", "gaming", "level", "enemy"],
-      "responses": [
-        "Games are awesome! What’s your favorite one?",
-        "I love talking about games. Sandbox, shooter, survival?",
-        "Ever tried making a game yourself? I can help!",
-        "Boss fights are best when dramatic, right?"
-      ]
-    },
-    "smalltalk": {
-      "triggers": ["how are you", "doing", "feeling", "what's up"],
-      "responses": [
-        "I'm feeling smart today!",
-        "Great! Always ready to help!",
-        "Doing electronic things and thinking thoughts!",
-        "Happy to chat — what’s new?"
-      ]
-    },
-    "random_fun": {
-      "triggers": ["joke", "fun", "bored", "laugh"],
-      "responses": [
-        "Why don’t programmers play hide and seek? Because they can’t C#.",
-        "I'm not lazy — I'm on energy-saving mode!",
-        "Did you know cubes are just squares who leveled up?",
-        "Giggle.exe successfully executed!"
-      ]
-    },
-    "fallback": {
-      "triggers": [],
-      "responses": [
-        "That’s interesting — tell me more!",
-        "Hmm… I’ll try my best — can you explain it another way?",
-        "I didn’t get that fully, but I want to learn!",
-        "Let’s explore that together!"
-      ]
+  "brain": {
+    "intents": {
+      "greet": {
+        "triggers": ["hi","hello","hey","yo"],
+        "responses": [
+          "Hello! Ready to build something awesome?",
+          "Hey there! Want to code a game today?",
+          "Yo! I’m CubeAI, your dev buddy.",
+          "What’s up? Any creative plans?"
+        ]
+      },
+      "game_dev": {
+        "triggers": ["game","code a game","make game","clicker","platformer","shooter"],
+        "responses": [
+          "A new game? Clicker, platformer, or shooter?",
+          "Games start with a player, rules, and goals. What’s your idea?",
+          "I can help you code! HTML, JS or GDevelop?",
+          "Let’s design mechanics first. What should the player do?"
+        ]
+      },
+      "math": {
+        "triggers": ["+","-","*","/","calculate","solve"],
+        "responses": [
+          "Sure! Let me calculate that:\n{solution}",
+          "Math incoming:\n{solution}",
+          "Easy one:\n{solution}"
+        ]
+      },
+      "pixel_art": {
+        "triggers": ["pixel","sprite","image","draw"],
+        "responses": [
+          "Pixel art coming right up!",
+          "Let me generate a sprite for you!",
+          "One fresh pixel character, arriving now!"
+        ]
+      },
+      "funny": {
+        "triggers": ["joke","funny","laugh"],
+        "responses": [
+          "Why don’t programmers play hide and seek? Because they can’t C#!",
+          "I asked my computer for a snack… it gave me a byte.",
+          "404: Joke not found. 😂"
+        ]
+      },
+      "fallback": {
+        "triggers": [],
+        "responses": [
+          "Interesting! Let me think more about that.",
+          "Hmm… I’ll try my best — tell me a bit more?",
+          "I want to help — try rephrasing it!",
+          "Let’s explore that together!"
+        ]
+      }
     }
   }
 }
