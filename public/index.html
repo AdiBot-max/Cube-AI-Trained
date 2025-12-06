@@ -66,20 +66,27 @@
 /* ----------------------------------------------------
    UI + DOM
 ---------------------------------------------------- */
+/* ----------------------------------------------------
+   UI + DOM
+---------------------------------------------------- */
 const chatEl = document.getElementById('chat');
 const inputEl = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
 const resultsModal = document.getElementById('resultsModal');
 const resultsEl = document.getElementById('results');
-const closeResults = document.getElementById('closeResults');
+const closeResults = document.getElementById('closeResultsBtn');
 
 const pixelModal = document.getElementById('pixelModal');
 const pixelCanvas = document.getElementById('pixelCanvas');
+const regenPixelBtn = document.getElementById('regenPixelBtn');
+const downloadPixelBtn = document.getElementById('downloadPixelBtn');
+const closePixelBtn = document.getElementById('closePixelBtn');
 const pctx = pixelCanvas.getContext('2d');
 pixelCanvas.width = 16;
 pixelCanvas.height = 16;
 pixelCanvas.style.width = "256px";
 pixelCanvas.style.imageRendering = "pixelated";
+
 
 let brain;
 
