@@ -2,54 +2,60 @@
   "brain": {
     "intents": {
       "greet": {
-        "triggers": ["hi","hello","hey","yo"],
-        "responses": [
-          "Hello! Ready to build something awesome?",
-          "Hey there! Want to code a game today?",
-          "Yo! I’m CubeAI, your dev buddy.",
-          "What’s up? Any creative plans?"
+        "triggers": ["hi", "hello", "hey", "yo"],
+        "examples": [
+          "hello there friend",
+          "hey how are you",
+          "hi what's up",
+          "yo nice to see you"
         ]
       },
+
       "game_dev": {
-        "triggers": ["game","code a game","make game","clicker","platformer","shooter"],
-        "responses": [
-          "A new game? Clicker, platformer, or shooter?",
-          "Games start with a player, rules, and goals. What’s your idea?",
-          "I can help you code! HTML, JS or GDevelop?",
-          "Let’s design mechanics first. What should the player do?"
+        "triggers": ["game", "code a game", "make game", "clicker", "platformer", "shooter"],
+        "examples": [
+          "make a simple clicker game",
+          "i want to build a platformer",
+          "how do i create a shooting game",
+          "coding games is fun",
+          "let's design game mechanics"
         ]
       },
+
       "math": {
-        "triggers": ["+","-","*","/","calculate","solve"],
-        "responses": [
-          "Sure! Let me calculate that:\n{solution}",
-          "Math incoming:\n{solution}",
-          "Easy one:\n{solution}"
+        "triggers": ["calculate", "solve", "+", "-", "*", "/"],
+        "examples": [
+          "solve this math equation",
+          "calculate numbers for me",
+          "do simple mathematics",
+          "what is the answer to this problem"
         ]
       },
+
       "pixel_art": {
-        "triggers": ["pixel","sprite","image","draw"],
-        "responses": [
-          "Pixel art coming right up!",
-          "Let me generate a sprite for you!",
-          "One fresh pixel character, arriving now!"
+        "triggers": ["pixel", "sprite", "image", "draw"],
+        "examples": [
+          "generate a tiny pixel sprite",
+          "draw an 8 bit character",
+          "create pixel art for me"
         ]
       },
+
       "funny": {
-        "triggers": ["joke","funny","laugh"],
-        "responses": [
-          "Why don’t programmers play hide and seek? Because they can’t C#!",
-          "I asked my computer for a snack… it gave me a byte.",
-          "404: Joke not found. 😂"
+        "triggers": ["joke", "funny", "laugh"],
+        "examples": [
+          "tell me something funny",
+          "make me laugh",
+          "say a programming joke"
         ]
       },
+
       "fallback": {
         "triggers": [],
-        "responses": [
-          "Interesting! Let me think more about that.",
-          "Hmm… I’ll try my best — tell me a bit more?",
-          "I want to help — try rephrasing it!",
-          "Let’s explore that together!"
+        "examples": [
+          "i don’t know how to answer that",
+          "this is confusing but interesting",
+          "maybe try rephrasing your question"
         ]
       }
     }
