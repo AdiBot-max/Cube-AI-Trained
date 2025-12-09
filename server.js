@@ -1,13 +1,23 @@
 /**
  * server.js
- * CubeAI — Turbo-V3 Markov generator + simple search proxy
+ * CubeAI — 4-response pipeline + keyword-aware generator (Option C)
  *
- * - Serves static files from /public
- * - GET /brain -> returns local brain.json
- * - POST /generate -> markov-based generation (prefers ^START keys)
- * - GET /search?q=... -> proxies to cube-search.onrender.com (single-homepage)
+ * Routes:
+ *  - GET /brain        -> returns brain.json
+ *  - POST /generate    -> { prompt, maxTokens } => { candidates: [...], chosenIndex, chosen }
+ *  - GET  /search?q=.. -> proxy cube-search (keeps homepage URL as requested)
  *
- * Start: node server.js
+ * Generation pipeline:
+ *  - 1) Build lightweight Markov from intent examples
+ *  - 2) Create 4 candidate responses using different strategies:
+ *      A: Markov continuation from prompt
+ *      B: Template joiner using intent keywords
+ *      C: Example + short Markov continuation
+ *      D: Keyword-focused short summary
+ *  - 3) Score candidates using keyword overlap, length and novelty heuristics
+ *  - 4) Return candidates + chosen response
+ *
+ * Note: This is deterministic-probabilistic but entirely local/safe.
  */
 
 import express from "express";
@@ -28,76 +38,89 @@ app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
 app.use(express.static("public"));
 
-// Basic rate limiter
 app.use(rateLimit({
   windowMs: 10_000,
-  max: 40,
+  max: 60
 }));
 
 /* -------------------------
-   Brain + MARKOV state
+   Brain + Markov state
    ------------------------- */
-let BRAIN = { intents: {} };
+let RAW = null;         // full parsed brain.json
+let BRAIN = { intents: {} };  // normalized
+let GLOBAL_KEYWORDS = {};     // keywords_global
 let MARKOV = { order: 2, map: new Map() };
 
-function safeLoadBrain() {
+/* -------------------------
+   Helpers: safe load brain
+   ------------------------- */
+function loadBrain() {
   try {
-    const raw = fs.readFileSync(path.join(__dirname, "brain.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    BRAIN = parsed.brain || parsed || { intents: {} };
-    buildMarkov(BRAIN);
-    console.log("Brain loaded. intents:", Object.keys(BRAIN.intents || {}).length);
-  } catch (err) {
-    console.error("Failed to load brain.json:", err.message);
+    const txt = fs.readFileSync(path.join(__dirname, "brain.json"), "utf8");
+    RAW = JSON.parse(txt);
+    BRAIN = RAW.brain || RAW;
+    GLOBAL_KEYWORDS = RAW.keywords_global || RAW.keywords_global || {};
+    buildMarkovFromExamples(BRAIN);
+    console.log("Brain loaded — intents:", Object.keys(BRAIN.intents || {}).length);
+  } catch (e) {
+    console.error("Failed to load brain.json:", e.message);
+    RAW = null;
     BRAIN = { intents: {} };
+    GLOBAL_KEYWORDS = {};
     MARKOV = { order: 2, map: new Map() };
   }
 }
 
-// Build an order-2 Markov map from each intent.examples (multi-line allowed)
-function buildMarkov(brain) {
+/* -------------------------
+   Build Markov from examples
+   ------------------------- */
+function buildMarkovFromExamples(brain) {
   const order = 2;
   const map = new Map();
 
-  function feedText(text) {
+  function feed(text) {
     if (!text || typeof text !== "string") return;
-    // split to words but preserve punctuation tokens as separate tokens
-    const tokens = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-    if (!tokens.length) return;
-    const padded = ["^START", ...tokens, "^END"];
-    for (let i = 0; i <= padded.length - order; i++) {
-      const key = padded.slice(i, i + order).join("\u0001");
-      const next = padded[i + order] || "^END";
+    const words = text
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean);
+    if (words.length === 0) return;
+    const pad = ["^START", ...words, "^END"];
+    for (let i = 0; i <= pad.length - order - 1; i++) {
+      const key = pad.slice(i, i + order).join("\u0001");
+      const next = pad[i + order];
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(next);
     }
   }
 
-  // feed examples (multi-line strings)
+  // feed all intent examples (preferred) and responses if no examples
   for (const intent of Object.values(brain.intents || {})) {
-    const examples = intent.examples || [];
-    for (const ex of examples) feedText(String(ex));
+    (intent.examples || []).forEach(e => feed(String(e)));
+    if ((!intent.examples || intent.examples.length === 0) && intent.responses) {
+      (intent.responses || []).forEach(r => feed(String(r)));
+    }
   }
 
   MARKOV = { order, map };
-  console.log("Markov built - keys:", MARKOV.map.size);
 }
 
-// Improved generator: always starts from ^START keys when possible to preserve first word
-function generateMarkov(prompt = "", maxTokens = 60) {
-  if (!MARKOV || !MARKOV.map || MARKOV.map.size === 0) return "I don't know yet — try web search.";
+/* -------------------------
+   Markov generator
+   ------------------------- */
+function generateMarkov(prompt = "", maxTokens = 40) {
+  if (!MARKOV || !MARKOV.map || MARKOV.map.size === 0) return "";
 
   const { order, map } = MARKOV;
-  const tokens = (String(prompt || "")).replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const tokens = (prompt || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 
-  // choose start keys that truly represent beginnings: ^START\u0001<word>
-  const startKeys = [...map.keys()].filter(k => k.startsWith("^START\u0001"));
+  // pick start key
   let key;
-
   if (tokens.length >= order) {
-    const candidate = tokens.slice(tokens.length - order).join("\u0001");
-    key = map.has(candidate) ? candidate : (startKeys.length ? startKeys[Math.floor(Math.random() * startKeys.length)] : [...map.keys()][Math.floor(Math.random() * map.size)]);
+    key = tokens.slice(tokens.length - order).join("\u0001");
   } else {
+    const startKeys = [...map.keys()].filter(k => k.startsWith("^START"));
     key = startKeys.length ? startKeys[Math.floor(Math.random() * startKeys.length)] : [...map.keys()][Math.floor(Math.random() * map.size)];
   }
 
@@ -106,107 +129,243 @@ function generateMarkov(prompt = "", maxTokens = 60) {
     const choices = map.get(key);
     if (!choices || choices.length === 0) break;
     const pick = choices[Math.floor(Math.random() * choices.length)];
-    if (pick === "^END") break;
+    if (!pick || pick === "^END") break;
     out.push(pick);
-    // advance frame: drop first token, push pick
     const parts = key.split("\u0001").slice(1);
     parts.push(pick);
     key = parts.join("\u0001");
   }
-
-  // Join and cleanup spacing around punctuation
-  let sentence = out.join(" ").replace(/\s+([.,!?;:])/g, "$1").trim();
-  if (!sentence) return "I don't have enough data to compose a reply yet.";
-  return sentence;
+  return out.join(" ");
 }
 
 /* -------------------------
-   Initial load + watch
+   Utilities: tokenize, keyword scoring
    ------------------------- */
-safeLoadBrain();
-try {
-  fs.watchFile(path.join(__dirname, "brain.json"), { interval: 2000 }, (curr, prev) => {
-    if (curr.mtimeMs !== prev.mtimeMs) {
-      console.log("brain.json changed — reloading");
-      safeLoadBrain();
+function tokenize(s) {
+  return String(s || "").toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+function uniqueWords(arr) {
+  return [...new Set(arr)];
+}
+
+// return number of matched keywords between candidate and sets (intent + global)
+function keywordScore(candidate, intentKeywords = [], globalKeywords = []) {
+  const candTokens = tokenize(candidate);
+  const candSet = new Set(candTokens);
+  let score = 0;
+  for (const k of intentKeywords) if (k && candSet.has(k.toLowerCase())) score++;
+  for (const k of globalKeywords) if (k && candSet.has(k.toLowerCase())) score++;
+  return score;
+}
+
+/* -------------------------
+   Candidate generators (4)
+   - markovContinuation(prompt)
+   - templateJoiner(intent, prompt, N)
+   - examplePlusContinue(intent, prompt)
+   - keywordSummary(intent, prompt)
+   ------------------------- */
+
+// A - Markov continuation
+function markovContinuation(prompt, max=40){
+  const out = generateMarkov(prompt, max);
+  return out || ""; // may be empty
+}
+
+// B - Template joiner: join top keywords into 1-3 short sentences
+function templateJoiner(intentName, prompt) {
+  const intent = (BRAIN.intents || {})[intentName] || {};
+  const intentKeys = (intent.keywords || []).slice(0, 6);
+  const globalKeys = Object.values(GLOBAL_KEYWORDS || {}).flat().slice(0, 12);
+
+  const use = [...new Set([...(intentKeys || []), ...(globalKeys || []).slice(0, 6)])].slice(0,6);
+  if (use.length === 0) return "";
+
+  // create 2-3 short sentences using keywords
+  const parts = [];
+  if (use.length >= 1) parts.push(`${capitalize(use[0])} matters most: ${use.slice(1,3).join(", ") || use[0]}.`);
+  if (use.length >= 3) parts.push(`Focus on ${use.slice(0,2).join(" & ")} and refine ${use[2]}.`);
+  if (use.length >= 4) parts.push(`Small iterations: ${use.slice(3).join(", ")}.`);
+  return parts.join(" ");
+}
+
+// C - Example + short continuation
+function examplePlusContinue(intentName, prompt) {
+  const intent = (BRAIN.intents || {})[intentName] || {};
+  const ex = (intent.examples || []);
+  if (!ex || ex.length === 0) return "";
+  const pick = ex[Math.floor(Math.random() * ex.length)];
+  const cont = generateMarkov(pick + " " + prompt, 20);
+  return (pick + (cont ? ("\n" + cont) : "")).trim();
+}
+
+// D - Keyword-focused short summary (concise)
+function keywordSummary(intentName, prompt) {
+  const intent = (BRAIN.intents || {})[intentName] || {};
+  const keys = (intent.keywords || []).slice(0, 6);
+  if (!keys || keys.length === 0) return "";
+  const joined = keys.map(k => k.toLowerCase()).join(", ");
+  return `Key points: ${joined}. Ask me to expand on any of these.`;
+}
+
+function capitalize(s){ return String(s||"").charAt(0).toUpperCase() + String(s||"").slice(1); }
+
+/* -------------------------
+   Scoring function
+   - keyword overlap
+   - length penalty (too short) and bonus for mid-length
+   - novelty (not identical to prompt)
+   ------------------------- */
+function scoreCandidate(candidate, prompt, intentName) {
+  const intent = (BRAIN.intents || {})[intentName] || {};
+  const intentKeys = intent.keywords || [];
+  const globalKeysFlat = Object.values(GLOBAL_KEYWORDS || {}).flat();
+  const kwScore = keywordScore(candidate, intentKeys, globalKeysFlat);
+
+  // length scoring
+  const L = candidate.split(/\s+/).filter(Boolean).length;
+  const lengthScore = Math.max(0, Math.min(1, (L - 6) / 20)); // preference for 6-26 words
+
+  // novelty: penalize if candidate repeated from prompt or empty
+  const novel = candidate && !candidate.toLowerCase().includes(prompt.trim().toLowerCase());
+  const noveltyScore = novel ? 1 : 0;
+
+  // small randomness for diversity
+  const rand = Math.random() * 0.2;
+
+  // combine
+  return kwScore * 2 + lengthScore * 1.5 + noveltyScore * 1 + rand;
+}
+
+/* -------------------------
+   Resolve best intent for prompt
+   - use triggers + keywords overlap
+   ------------------------- */
+function detectIntent(prompt) {
+  const t = prompt.toLowerCase();
+  let best = "fallback";
+  let bestScore = -1;
+
+  for (const [iname, intent] of Object.entries(BRAIN.intents || {})) {
+    // trigger match quick boost
+    let score = 0;
+    for (const trig of (intent.triggers || [])) {
+      if (!trig) continue;
+      if (t.includes(String(trig).toLowerCase())) score += 5;
     }
+    // keywords overlap
+    for (const k of (intent.keywords || [])) {
+      if (!k) continue;
+      if (t.includes(String(k).toLowerCase())) score += 2;
+    }
+    // global keywords overlap
+    for (const ks of Object.values(GLOBAL_KEYWORDS || {})) {
+      for (const k of ks) if (k && t.includes(k.toLowerCase())) score += 1;
+    }
+
+    if (score > bestScore) { bestScore = score; best = iname; }
+  }
+
+  return best;
+}
+
+/* -------------------------
+   Pipeline: create 4 candidates, score & choose
+   ------------------------- */
+function createAndRankCandidates(prompt, maxTokens=80) {
+  const intent = detectIntent(prompt);
+  const cands = [];
+
+  // gen A
+  const A = markovContinuation(prompt, Math.min(40, maxTokens));
+  if (A) cands.push({ label: "markov", text: A });
+
+  // gen B
+  const B = templateJoiner(intent, prompt);
+  if (B) cands.push({ label: "template", text: B });
+
+  // gen C
+  const C = examplePlusContinue(intent, prompt);
+  if (C) cands.push({ label: "example+cont", text: C });
+
+  // gen D
+  const D = keywordSummary(intent, prompt);
+  if (D) cands.push({ label: "summary", text: D });
+
+  // ensure at least 4 entries (fill with short markov variations)
+  while (cands.length < 4) {
+    const filler = generateMarkov(prompt + " " + (Math.random() > 0.5 ? "more" : ""), 16) || ("Let me think about " + prompt);
+    cands.push({ label: "filler", text: filler });
+  }
+
+  // score them
+  const scored = cands.map((c, i) => {
+    return { i, label: c.label, text: c.text, score: scoreCandidate(c.text || "", prompt, intent) };
   });
-} catch (e) {
-  console.warn("fs.watchFile may be restricted: ", e.message);
+
+  scored.sort((a,b)=>b.score - a.score);
+  // chosen is top
+  const chosen = scored[0];
+  // reorder to keep top first in returned list (but include all 4)
+  const candidates = scored.slice(0,4).map(s => ({ label: s.label, text: s.text, score: Number(s.score.toFixed(3)) }));
+  return { intent, candidates, chosenIndex: 0, chosen: candidates[0]?.text || "" };
 }
 
 /* -------------------------
    Routes
    ------------------------- */
 
-// Serve raw brain.json
-app.get("/brain", (req, res) => {
+loadBrain();
+try {
+  fs.watchFile(path.join(__dirname, "brain.json"), { interval: 2000 }, () => {
+    console.log("brain.json changed — reloading");
+    loadBrain();
+  });
+} catch(_) {}
+
+app.get("/brain", (req,res) => {
   try {
-    const raw = fs.readFileSync(path.join(__dirname, "brain.json"), "utf8");
-    res.setHeader("Content-Type", "application/json");
-    res.send(raw);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load brain.json", detail: err.message });
+    res.type("application/json").send(fs.readFileSync(path.join(__dirname,"brain.json"),"utf8"));
+  } catch(e){
+    res.status(500).json({ error: "cannot read brain.json", detail: e.message });
   }
 });
 
-// Generate endpoint
 app.post("/generate", (req, res) => {
   try {
     const prompt = String(req.body?.prompt || "");
-    const max = Math.min(200, Number(req.body?.maxTokens || 60));
-
-    // quick intent detection: if prompt includes a trigger, use a random example as seed, then generate continuation
-    const lower = prompt.toLowerCase();
-    for (const [iname, intent] of Object.entries(BRAIN.intents || {})) {
-      for (const trig of (intent.triggers || [])) {
-        if (!trig) continue;
-        if (lower.includes(String(trig).toLowerCase())) {
-          const examples = intent.examples || [];
-          if (examples.length) {
-            const seed = examples[Math.floor(Math.random() * examples.length)];
-            const cont = generateMarkov(seed, Math.max(12, Math.floor(max / 3)));
-            return res.json({ type: "intent", intent: iname, reply: seed + (cont ? ("\n\n" + cont) : "") });
-          }
-        }
-      }
-    }
-
-    // fallback: generate from prompt seed
-    const out = generateMarkov(prompt, max);
-    res.json({ type: "generate", reply: out });
-  } catch (err) {
-    console.error("generate error:", err.stack || err.message);
-    res.status(500).json({ error: "Generation failed", detail: err.message });
+    const maxTokens = Math.min(120, Number(req.body?.maxTokens || 80));
+    const out = createAndRankCandidates(prompt, maxTokens);
+    return res.json(out);
+  } catch (e) {
+    console.error("generate error:", e);
+    return res.status(500).json({ error: "generation failed", detail: e.message });
   }
 });
 
-// Search proxy — single homepage semantics (keeps link same)
+// /search keeps homepage link as requested
 app.get("/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
-  if (!q) return res.status(400).json({ error: "Missing q parameter" });
-
+  if (!q) return res.status(400).json({ error: "Missing q" });
   try {
-    // cube-search is a single page — call root and return snippet
     const upstream = `https://cube-search.onrender.com?q=${encodeURIComponent(q)}`;
-    const r = await fetch(upstream, { method: "GET", headers: { "User-Agent": "CubeAI/1.0" }, timeout: 10000 });
-    const contentType = (r.headers.get("content-type") || "").toLowerCase();
-    if (contentType.includes("application/json")) {
+    const r = await fetch(upstream, { headers: { "User-Agent": "CubeAI/1.0" } });
+    const ct = r.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
       const j = await r.json();
       return res.json(j);
     }
-    const text = await r.text();
-    const snippet = text.replace(/\s+/g, " ").slice(0, 2000);
-    return res.json({ results: [{ title: `Search results for "${q}" (cube-search)`, url: "https://cube-search.onrender.com", text: snippet }] });
-  } catch (err) {
-    console.error("Search proxy error:", err.message);
-    return res.status(502).json({ error: "Search failed", detail: err.message });
+    const html = await r.text();
+    const snippet = (html.replace(/\s+/g, " ").slice(0, 1600)).trim();
+    return res.json({ results: [{ title: `Search: ${q}`, url: "https://cube-search.onrender.com", text: snippet }] });
+  } catch (e) {
+    console.error("search proxy error:", e.message);
+    return res.status(502).json({ error: "search failed", detail: e.message });
   }
 });
 
-app.get("/_health", (req, res) => res.json({ ok: true, time: Date.now() }));
+app.get("/_health", (_,res)=>res.json({ ok:true, time: Date.now() }));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`CubeAI server listening on ${PORT}`);
-});
+app.listen(PORT, "0.0.0.0", ()=>console.log(`CubeAI server listening on ${PORT}`));
