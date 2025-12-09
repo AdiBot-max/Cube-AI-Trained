@@ -1,230 +1,280 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CubeChat — Generative</title>
-
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CubeChat — Generative (Turbo V3)</title>
 <style>
-/* same UI as before */
-:root{--bg:#071327;--card:#0b1220;--player:#b8e0ff;--ai:#b7ffc9;--muted:#8899cc}
-body{margin:18px;font-family:system-ui;background:var(--bg);color:#e6eef8}
-.card{background:var(--card);padding:18px;border-radius:12px;max-width:900px;margin:auto}
-#chat{background:#071427;height:520px;overflow:auto;padding:12px;border-radius:8px}
-.msg{margin:8px 0;white-space:pre-wrap}
+:root{--bg:#071327;--card:#0b1220;--muted:#98b1d6;--player:#b8e0ff;--ai:#b7ffc9}
+body{font-family:Inter,system-ui,Segoe UI,Arial;margin:18px;background:var(--bg);color:#e6eef8}
+.card{background:var(--card);padding:18px;border-radius:12px;max-width:980px;margin:12px auto;box-shadow:0 6px 30px rgba(0,0,0,.55)}
+h1{margin:0 0 8px;font-size:20px}
+#chat{height:520px;overflow:auto;padding:12px;border-radius:8px;background:#071427;margin-bottom:12px}
+.msg{margin:8px 0;white-space:pre-wrap;font-size:15px;line-height:1.4}
 .player{color:var(--player)}
 .ai{color:var(--ai)}
-button{padding:10px 14px;background:#12324a;color:#fff;border:0;border-radius:8px;cursor:pointer}
-input{flex:1;padding:10px;background:#06101f;color:#eee;border-radius:8px;border:1px solid #123}
-#resultsModal,#pixelModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);opacity:0;transition:.2s;z-index:10;background:#000;padding:20px;border-radius:12px;width:90%;max-width:900px}
+input{flex:1;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#071029;color:#e6eef8}
+button{padding:10px 14px;border-radius:8px;border:0;background:#12324a;color:#fff;cursor:pointer}
+.notice{color:var(--muted);font-size:13px;margin-bottom:8px}
+#resultsModal,#pixelModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);opacity:0;background:#0b0b0b;padding:18px;border-radius:14px;width:92%;max-width:900px;max-height:80vh;overflow:auto;z-index:9999;transition:.18s}
 #resultsModal.show,#pixelModal.show{transform:translate(-50%,-50%) scale(1);opacity:1}
-canvas{width:256px;height:256px;image-rendering:pixelated}
+.resultItem{padding:12px;margin-bottom:10px;border-radius:10px;background:#111}
+canvas{width:256px;height:256px;image-rendering:pixelated;display:block;margin:10px auto}
+.small{font-size:12px;color:#9fb1d6}
 </style>
 </head>
 <body>
+  <div class="card">
+    <h1>CubeChat — Generative (Turbo V3)</h1>
+    <p class="notice">Type anything. Try: <b>pixel</b> (generate sprite) or <b>search: cats</b> (force web lookup).</p>
 
-<div class="card">
-  <h1>CubeChat — Generative</h1>
-  <p style="color:var(--muted)">Say anything. I generate based on learning examples.</p>
+    <div id="chat" aria-live="polite"></div>
 
-  <div id="chat"></div>
-
-  <div style="display:flex;gap:8px;margin-top:8px">
-    <input id="userInput" placeholder="Message…">
-    <button id="sendBtn">Send</button>
+    <div style="display:flex;gap:8px">
+      <input id="userInput" placeholder="Type your message..." aria-label="message"/>
+      <button id="sendBtn">Send</button>
+    </div>
   </div>
-</div>
 
-<!-- SEARCH MODAL -->
-<div id="resultsModal">
-  <button id="closeResultsBtn">Close</button>
-  <div id="results"></div>
-</div>
+  <!-- Search results -->
+  <div id="resultsModal" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:flex-end"><button id="closeResultsBtn">✖</button></div>
+    <div id="results"></div>
+  </div>
 
-<!-- PIXEL MODAL -->
-<div id="pixelModal">
-  <button id="closePixelBtn">Close</button>
-  <h3>Pixel Sprite</h3>
-  <canvas id="pixelCanvas" width="16" height="16"></canvas>
-  <button id="regenPixelBtn">New Sprite</button>
-  <button id="downloadPixelBtn">Download</button>
-</div>
+  <!-- Pixel modal -->
+  <div id="pixelModal" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:flex-end"><button id="closePixelBtn">✖</button></div>
+    <h3 style="text-align:center;color:#fff">Pixel Sprite</h3>
+    <canvas id="pixelCanvas" width="16" height="16"></canvas>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+      <button id="regenPixelBtn">New Sprite</button>
+      <button id="downloadPixelBtn">Download</button>
+    </div>
+  </div>
 
 <script>
-/*******************************************************
-  DOM
-*******************************************************/
-const chatEl=document.getElementById("chat");
-const inputEl=document.getElementById("userInput");
-const sendBtn=document.getElementById("sendBtn");
+/* ---------------------------
+   DOM refs (safe)
+--------------------------- */
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
 
-const resultsModal=document.getElementById("resultsModal");
-const resultsEl=document.getElementById("results");
-const closeResultsBtn=document.getElementById("closeResultsBtn");
+const resultsModal = document.getElementById('resultsModal');
+const resultsEl = document.getElementById('results');
+const closeResultsBtn = document.getElementById('closeResultsBtn');
 
-const pixelModal=document.getElementById("pixelModal");
-const pixelCanvas=document.getElementById("pixelCanvas");
-const regenPixelBtn=document.getElementById("regenPixelBtn");
-const closePixelBtn=document.getElementById("closePixelBtn");
-const downloadPixelBtn=document.getElementById("downloadPixelBtn");
-const pctx=pixelCanvas.getContext("2d");
+const pixelModal = document.getElementById('pixelModal');
+const pixelCanvas = document.getElementById('pixelCanvas');
+const regenPixelBtn = document.getElementById('regenPixelBtn');
+const downloadPixelBtn = document.getElementById('downloadPixelBtn');
+const closePixelBtn = document.getElementById('closePixelBtn');
 
-/*******************************************************
-  Pixel Art
-*******************************************************/
+const pctx = pixelCanvas.getContext('2d');
+pixelCanvas.style.imageRendering = "pixelated";
+
+/* ---------------------------
+   Pixel generator
+--------------------------- */
 function randomColor(){
-  const arr=["#00eaff","#0df","#099","#6ef","#ccf"];
-  return arr[Math.floor(Math.random()*arr.length)];
+  const colors = ["#00eaff","#0dc9f7","#005577","#33ffff","#99ffff","#ffd68f","#ffcc99"];
+  return colors[Math.floor(Math.random()*colors.length)];
 }
-
-function generatePixel(){
+function generatePixelArt(){
   pctx.clearRect(0,0,16,16);
   for(let y=0;y<16;y++){
     for(let x=0;x<8;x++){
-      if(Math.random()>0.4){
+      if(Math.random()>0.45){
         const c=randomColor();
-        pctx.fillStyle=c;
+        pctx.fillStyle = c;
         pctx.fillRect(x,y,1,1);
         pctx.fillRect(15-x,y,1,1);
       }
     }
   }
 }
-
-function openPixel(){ pixelModal.classList.add("show"); generatePixel(); }
-function closePixel(){ pixelModal.classList.remove("show"); }
-
-regenPixelBtn.onclick=generatePixel;
-closePixelBtn.onclick=closePixel;
-downloadPixelBtn.onclick=()=>{
-  const a=document.createElement("a");
-  a.href=pixelCanvas.toDataURL();
-  a.download="pixel.png";
+regenPixelBtn.addEventListener('click', generatePixelArt);
+downloadPixelBtn.addEventListener('click', ()=> {
+  const a = document.createElement('a');
+  a.href = pixelCanvas.toDataURL();
+  a.download = 'pixel.png';
   a.click();
-};
+});
+closePixelBtn.addEventListener('click', ()=> pixelModal.classList.remove('show'));
 
-/*******************************************************
-  Chat helpers
-*******************************************************/
-function addChat(role,msg){
-  const el=document.createElement("div");
-  el.className="msg "+(role==="player"?"player":"ai");
-  el.textContent=(role==="player"?"Player: ":"CubeAI: ")+msg;
-  chatEl.appendChild(el);
-  chatEl.scrollTop=chatEl.scrollHeight;
+/* ---------------------------
+   Chat helpers
+--------------------------- */
+function escapeHTML(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function addChat(role, text){
+  const d = document.createElement('div');
+  d.className = 'msg ' + (role==='player' ? 'player' : 'ai');
+  d.innerHTML = `<b>${role==='player' ? 'Player' : 'CubeAI'}:</b> ${escapeHTML(text)}`;
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
 }
+function addSystem(text){ const d=document.createElement('div'); d.className='msg ai'; d.textContent=text; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
 
-/*******************************************************
-  Brain Load
-*******************************************************/
-let brain=null;
-
+/* ---------------------------
+   Load brain
+--------------------------- */
+let brain = { intents: {} };
 async function loadBrain(){
   try{
-    const r=await fetch("/brain");
-    brain=await r.json();
-    addChat("ai","Brain ready!");
-  }catch{
-    addChat("ai","⚠ Brain load failed.");
+    const r = await fetch('/brain');
+    if(!r.ok) throw new Error('failed to fetch brain');
+    brain = await r.json();
+    addSystem("Brain ready!");
+  } catch(e){
+    console.warn(e);
+    addSystem("⚠ Brain not found!");
   }
 }
 
-/*******************************************************
-  Intent detection = only picks examples, never answers
-*******************************************************/
-function predictIntent(txt){
-  txt=txt.toLowerCase();
-  for(const k in brain.intents){
-    for(const t of brain.intents[k].triggers||[]){
-      if(txt.includes(t.toLowerCase())) return k;
+/* ---------------------------
+   Intent matching (defensive)
+--------------------------- */
+function predictIntent(text){
+  if(!brain || !brain.intents) return null;
+  const t = String(text||'').toLowerCase();
+  for(const k of Object.keys(brain.intents || {})){
+    const data = brain.intents[k] || {};
+    const triggers = data.triggers || [];
+    for(const trig of triggers){
+      if(!trig) continue;
+      try { if(t.includes(String(trig).toLowerCase())) return k; } catch {}
     }
   }
   return null;
 }
 
-/*******************************************************
-  Search
-*******************************************************/
+/* ---------------------------
+   Search helper (proxy)
+--------------------------- */
 async function doSearch(q){
   try{
-    const r=await fetch(`/search?q=${encodeURIComponent(q)}`);
+    const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
     if(!r.ok) return [];
-    const j=await r.json();
-    return j.results||[];
-  }catch{return []}
+    const j = await r.json();
+    return j.results || [];
+  } catch(e) {
+    console.warn('search error', e);
+    return [];
+  }
 }
-
 function showResults(items){
-  resultsEl.innerHTML="";
-  items.forEach(r=>{
-    const div=document.createElement("div");
-    div.innerHTML=`<b>${r.title||""}</b><br>${r.text}`;
-    resultsEl.appendChild(div);
-  });
-  resultsModal.classList.add("show");
+  resultsEl.innerHTML = '';
+  if(!items || items.length === 0){
+    resultsEl.innerHTML = '<div class="small">No results.</div>';
+  } else {
+    for(const r of items){
+      const el = document.createElement('div');
+      el.className = 'resultItem';
+      el.innerHTML = `<strong>${escapeHTML(r.title||'')}</strong>
+                      <div style="color:#bfcbdc">${escapeHTML(r.text||'')}</div>
+                      <div style="margin-top:6px"><a href="${escapeHTML(r.url||'')}" target="_blank">${escapeHTML(r.url||'Open link')}</a></div>`;
+      resultsEl.appendChild(el);
+    }
+  }
+  resultsModal.classList.add('show');
 }
+closeResultsBtn.addEventListener('click', ()=> resultsModal.classList.remove('show'));
 
-closeResultsBtn.onclick=()=>resultsModal.classList.remove("show");
-
-/*******************************************************
-  MAIN HANDLE MESSAGE
-*******************************************************/
+/* ---------------------------
+   Generation + message flow
+   Strategy:
+     1) Pixel quick path
+     2) Try server /generate (markov) first
+     3) If generated too short, try intent example response
+     4) If still short, search
+--------------------------- */
 async function handleMessage(text){
-  if(!text.trim()) return;
+  text = String(text || '').trim();
+  if(!text) return;
 
-  addChat("player", text);
+  addChat('player', text);
 
-  if(text.toLowerCase().includes("pixel")){
-    addChat("ai","Generating pixel...");
-    openPixel();
+  const lower = text.toLowerCase();
+
+  // Pixel quick path
+  if(lower.includes('pixel') || lower.includes('sprite') || lower.includes('image')){
+    addChat('ai', 'Generating pixel sprite...');
+    generatePixelArt();
+    pixelModal.classList.add('show');
     return;
   }
 
-  addChat("ai","Thinking...");
+  // Force search prefix
+  if(lower.startsWith('search:')){
+    const q = text.slice(7).trim();
+    addChat('ai', 'Searching...');
+    const results = await doSearch(q);
+    if(results[0]) addChat('ai', results[0].text || 'Found something — open results.');
+    showResults(results);
+    return;
+  }
 
-  const intent=predictIntent(text);
-  let seed="";
+  addChat('ai', 'Composing reply...');
 
-  if(intent){
-    const ex=brain.intents[intent].examples;
-    if(ex && ex.length){
-      seed=ex[Math.floor(Math.random()*ex.length)]+" ";
+  // 1) Try generate (server)
+  try {
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: text, maxTokens: 120 })
+    });
+    if (res.ok) {
+      const js = await res.json();
+      const reply = String(js.reply || '').trim();
+      if (reply && reply.length > 12) {
+        addChat('ai', reply);
+        return;
+      }
+    }
+  } catch(err){
+    console.warn('generate failed', err);
+  }
+
+  // 2) Intent fallback: return a short example (not full response list)
+  const intent = predictIntent(text);
+  if (intent && brain.intents && brain.intents[intent]) {
+    const exList = brain.intents[intent].examples || [];
+    if (exList.length) {
+      // pick a multi-line example and show a shortened preview if large
+      let pick = exList[Math.floor(Math.random() * exList.length)];
+      if (typeof pick !== 'string') pick = String(pick);
+      addChat('ai', pick.length > 800 ? (pick.slice(0,800) + '...') : pick);
+      return;
     }
   }
 
-  // GENERATE ALWAYS
-  try{
-    const res=await fetch("/generate",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt:seed+text, maxTokens:80})
-    });
-
-    const js=await res.json();
-    const reply=js.reply?.trim();
-
-    if(reply && reply.length>5){
-      addChat("ai", reply);
-      return;
-    }
-
-  }catch{}
-
-  // SEARCH fallback
-  addChat("ai","Searching...");
-  const results=await doSearch(text);
-  if(results[0]) addChat("ai", results[0].text);
+  // 3) Last resort — web search
+  addChat('ai', 'Let me check the web...');
+  const results = await doSearch(text);
+  if(results[0]) addChat('ai', results[0].text || 'See results');
   showResults(results);
 }
 
-/*******************************************************
-  UI
-*******************************************************/
-sendBtn.onclick=()=>{ handleMessage(inputEl.value); inputEl.value=""; };
-inputEl.onkeydown=e=>{ if(e.key==="Enter") sendBtn.click(); };
+/* ---------------------------
+   Events
+--------------------------- */
+sendBtn.addEventListener('click', ()=> {
+  handleMessage(inputEl.value);
+  inputEl.value = '';
+  inputEl.focus();
+});
+inputEl.addEventListener('keydown', e => {
+  if(e.key === 'Enter') {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
 
+/* ---------------------------
+   Init
+--------------------------- */
 loadBrain();
 </script>
-
 </body>
 </html>
