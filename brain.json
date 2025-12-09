@@ -1,63 +1,98 @@
 {
-  "brain": {
-    "intents": {
-      "greet": {
-        "triggers": ["hi", "hello", "hey", "yo"],
-        "examples": [
-          "hello there friend",
-          "hey how are you",
-          "hi what's up",
-          "yo nice to see you"
-        ]
-      },
+  "intents": {
+    "greet": {
+      "triggers": ["hi", "hello", "hey", "yo", "sup", "hola"],
+      "examples": [
+        "hey, what's going on today",
+        "hello, i’m ready to think with you",
+        "yo, what are we building",
+        "hi, want to make something cool",
+        "nice to see you again",
+        "what’s on your mind right now"
+      ]
+    },
 
-      "game_dev": {
-        "triggers": ["game", "code a game", "make game", "clicker", "platformer", "shooter"],
-        "examples": [
-          "make a simple clicker game",
-          "i want to build a platformer",
-          "how do i create a shooting game",
-          "coding games is fun",
-          "let's design game mechanics"
-        ]
-      },
+    "game_dev": {
+      "triggers": ["game", "dev", "clicker", "platformer", "shooter", "make game"],
+      "examples": [
+        "a game starts with a core loop and a simple player action",
+        "we could design a clicker system with upgrades and numbers",
+        "platformers always need good movement and small levels first",
+        "shooters need aiming and enemy patterns",
+        "maybe start with a prototype before adding graphics",
+        "do you want fast gameplay or calm gameplay",
+        "mechanics shape the game feel and challenge",
+        "tiny ideas can grow into full games"
+      ]
+    },
 
-      "math": {
-        "triggers": ["calculate", "solve", "+", "-", "*", "/"],
-        "examples": [
-          "solve this math equation",
-          "calculate numbers for me",
-          "do simple mathematics",
-          "what is the answer to this problem"
-        ]
-      },
+    "coding": {
+      "triggers": ["code", "js", "html", "css", "script", "function"],
+      "examples": [
+        "coding is like solving puzzles one line at a time",
+        "javascript can generate dynamic behavior easily",
+        "html builds the structure and css makes it look alive",
+        "clean code makes features easier to expand",
+        "functions keep logic organized and readable",
+        "good naming makes everything feel smoother to build",
+        "we can break the problem into small components"
+      ]
+    },
 
-      "pixel_art": {
-        "triggers": ["pixel", "sprite", "image", "draw"],
-        "examples": [
-          "generate a tiny pixel sprite",
-          "draw an 8 bit character",
-          "create pixel art for me"
-        ]
-      },
+    "pixel_art": {
+      "triggers": ["pixel", "sprite", "image", "draw", "art"],
+      "examples": [
+        "pixel art works great when shapes stay simple and readable",
+        "symmetry makes tiny sprites feel more alive",
+        "colors need contrast to pop out in small canvases",
+        "8x8 and 16x16 grids are perfect for quick designs",
+        "a character silhouette matters more than detail",
+        "shadows and highlights give tiny shapes personality"
+      ]
+    },
 
-      "funny": {
-        "triggers": ["joke", "funny", "laugh"],
-        "examples": [
-          "tell me something funny",
-          "make me laugh",
-          "say a programming joke"
-        ]
-      },
+    "math": {
+      "triggers": ["calculate", "math", "+", "-", "*", "/", "solve"],
+      "examples": [
+        "sometimes math feels like balancing tiny pieces",
+        "numbers follow patterns we can explore",
+        "equations are just relationships between values",
+        "we can break complicated math into simple steps",
+        "answers appear once we rearrange things clearly"
+      ]
+    },
 
-      "fallback": {
-        "triggers": [],
-        "examples": [
-          "i don’t know how to answer that",
-          "this is confusing but interesting",
-          "maybe try rephrasing your question"
-        ]
-      }
+    "funny": {
+      "triggers": ["joke", "funny", "lol", "laugh"],
+      "examples": [
+        "humor makes coding bugs hurt a little less",
+        "sometimes errors feel like jokes programmed badly",
+        "a tiny mistake in code can create a big silly chaos",
+        "computers pretend they know everything but forget semicolons",
+        "debugging feels like detective work with no suspects"
+      ]
+    },
+
+    "chat": {
+      "triggers": ["talk", "chat", "tell", "explain"],
+      "examples": [
+        "i like when conversations bounce with new ideas",
+        "thoughts expand when we talk through them",
+        "every question can lead into something interesting",
+        "sharing ideas makes them easier to shape",
+        "i can explore concepts with you as we go"
+      ]
+    },
+
+    "fallback": {
+      "triggers": [],
+      "examples": [
+        "i can try to understand what you mean",
+        "maybe explain that a bit more",
+        "that sounds interesting but a little unclear",
+        "i want to follow along, say it again differently",
+        "tell me more so i can build a response"
+      ]
     }
   }
 }
