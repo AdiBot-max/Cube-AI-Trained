@@ -3,82 +3,70 @@
     "intents": {
       "greet": {
         "triggers": ["hi", "hello", "hey", "yo", "sup"],
+        "keywords": ["hello", "greeting", "welcome", "ready"],
         "examples": [
           "Hey! It's great to see you again.\nWhat are we creating today?",
-          "Hello there!\nI’m ready to build, code, design, or explain anything you want.",
-          "Yo! I’m CubeAI.\nI love helping with coding, math, games, and totally random ideas.",
-          "Hey! Before we begin, tell me one thing: what’s the plan?\nCoding? Game dev? Something fun?"
+          "Hello there! I’m ready to build, code, design, or explain anything you want.",
+          "Yo! I’m CubeAI. I love helping with coding, math, games, and random ideas.",
+          "Before we begin — what’s the plan? Coding? Game dev? Something fun?"
         ]
       },
-
       "game_dev": {
         "triggers": ["game", "code a game", "make game", "clicker", "platformer", "shooter", "gdevelop", "unity"],
+        "keywords": ["mechanics", "player", "movement", "loop", "upgrade", "prototype", "gamefeel", "feedback"],
         "examples": [
           "A good game starts with one thing: mechanics.\nYou define what the player can do, then the world reacts.\nMovement, goals, rewards — everything grows from that core.",
-          "Clicker games usually revolve around simple loops:\n• Player clicks → gets currency\n• Currency upgrades → bigger clicks\n• Upgrades loop → player stays engaged.\nIf you want, I can sketch a clicker blueprint for you.",
-          "Platformer design basics:\n• Movement must feel tight and responsive.\n• Player needs consistent jump arcs.\n• Levels should teach mechanics without tutorials.\nWhat theme do you want your platformer to have?",
-          "Shooters need feedback — sound, particles, camera shake.\nEven tiny recoil makes the weapon feel alive.\nWe can also add enemies with simple AI loops.",
-          "Game feel is everything.\nA simple mechanic becomes amazing when timing, speed, and effects blend.\nWe can start with a prototype movement system and expand from there."
+          "Clicker games usually revolve around simple loops:\n• Player clicks → currency → upgrades\n• Upgrades produce better clicks and progression loops.",
+          "Platformers need tight movement and predictable jumps. Build a small prototype and iterate fast.",
+          "Shooters need sound, particles, and simple enemy loops to feel satisfying."
         ]
       },
-
       "coding": {
         "triggers": ["code", "html", "js", "javascript", "css", "program"],
+        "keywords": ["structure", "html", "css", "javascript", "components", "debug", "iterate"],
         "examples": [
-          "Here’s how I'd think about coding:\nBreak problems into small predictable steps.\nEvery feature is just a chain of tiny solvable tasks.",
-          "If you're coding a website, start with structure (HTML), then style (CSS), then behavior (JS).\nBuilding in layers keeps everything clean.",
-          "Coding tip:\nNever write code first.\nWrite the idea, the purpose, the steps, THEN write the code.\nYour future self will thank you.",
-          "JavaScript can create movement, interaction, physics, UI... basically anything the browser can do.\nWant me to generate a small demo?"
+          "Coding tip: break problems into small steps. Every feature is a chain of tiny solvable tasks.",
+          "If you're building a website: structure with HTML, style with CSS, then add behavior with JS.",
+          "Write the idea and the steps before writing code — it saves debugging time."
         ]
       },
-
       "math": {
         "triggers": ["calculate", "+", "-", "*", "/", "solve", "math"],
+        "keywords": ["equation", "value", "solve", "difference", "sum", "variable"],
         "examples": [
-          "Let me walk through the steps:\n1. Identify the known values.\n2. Find the missing variable.\n3. Apply the operation logically.\nThis makes even hard math feel simple.",
-          "Math works best when you think slowly.\nTake the expression, break it into chunks, solve each chunk.\nWant me to solve something for you?",
-          "If A = 20 and A - B = 10, then the missing value must balance the equation.\nI look at the difference and match it.",
-          "Numbers always follow patterns.\nOnce you find the pattern, the answer becomes obvious."
+          "Let me walk through steps: identify knowns, isolate unknowns, and apply algebraic rules.",
+          "Math gets easier when you break expressions into smaller chunks and solve each part."
         ]
       },
-
       "pixel_art": {
-        "triggers": ["pixel", "sprite", "image", "draw"],
+        "triggers": ["pixel", "sprite", "image", "draw", "spritegen"],
+        "keywords": ["silhouette", "palette", "contrast", "symmetry", "shading"],
         "examples": [
-          "Pixel art works best when the silhouette is simple.\nThe eyes, the outline, the contrast — that's what sells the character.",
-          "Every sprite begins with symmetry or asymmetry.\nEven random shapes can become a character if colors follow a theme.",
-          "Pixel sprites look great when the shading is limited.\nOne highlight, one shadow, one midtone — easy and effective."
+          "Pixel art works best with a clear silhouette and limited palette. One highlight, one shadow.",
+          "Start symmetric shapes, block colors, then add small highlights to give character."
         ]
       },
-
-      "chat_general": {
-        "triggers": ["what", "why", "how", "explain", "tell"],
-        "examples": [
-          "Let me think about that.\nI try to break your question into tiny pieces and connect ideas.",
-          "That’s interesting!\nSometimes the answer isn’t direct, but patterns help find the meaning.",
-          "Good question.\nIf we explore it step by step, the answer becomes clear.",
-          "Let me try explaining this in a simple way…"
-        ]
-      },
-
       "stories": {
-        "triggers": ["story", "tell me a story"],
+        "triggers": ["story", "tell me a story", "narrate"],
+        "keywords": ["once", "character", "journey", "scene", "tone"],
         "examples": [
-          "Once, a tiny cube drifted in the void.\nEvery day it learned something new from passing stars.\nOne day it decided to build a universe of its own.",
-          "There was an alien who tried coding.\nIt pressed random buttons but somehow created a masterpiece.\nSometimes chaos is part of creativity.",
-          "In a quiet digital village, a small script woke up.\nIt didn't know what it was for, but it wanted to help anyone who typed to it.\nThat script eventually became… me."
+          "Once a tiny cube drifted in the void. Every day it learned something new from passing stars.",
+          "There was an alien who tried coding and accidentally made a small masterpiece."
         ]
       },
-
       "fallback": {
         "triggers": [],
+        "keywords": ["explore", "clarify", "more", "detail"],
         "examples": [
-          "I’m thinking… your message feels interesting.\nLet me try to connect ideas and come up with something meaningful.",
-          "Hmm… not 100% sure, but I can explore that.\nGive me a little more detail and we can build from it.",
-          "Let me try approaching this from a different angle.\nThere might be multiple ways to understand your message.",
-          "That's unique!\nI can riff on that idea and see where it goes."
+          "I’m thinking… your message feels interesting. Give me a little more detail and we can build from it.",
+          "Hmm… I’m not 100% sure yet. Try rephrasing or adding one sentence of context."
         ]
       }
     }
+  },
+  "keywords_global": {
+    "design": ["shape", "theme", "palette", "contrast", "layout"],
+    "ux": ["feedback", "timing", "responsiveness", "clarity"],
+    "dev": ["iterate", "prototype", "debug", "optimize"]
   }
 }
