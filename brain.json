@@ -1,98 +1,84 @@
 {
-  "intents": {
-    "greet": {
-      "triggers": ["hi", "hello", "hey", "yo", "sup", "hola"],
-      "examples": [
-        "hey, what's going on today",
-        "hello, i’m ready to think with you",
-        "yo, what are we building",
-        "hi, want to make something cool",
-        "nice to see you again",
-        "what’s on your mind right now"
-      ]
-    },
+  "brain": {
+    "intents": {
+      "greet": {
+        "triggers": ["hi", "hello", "hey", "yo", "sup"],
+        "examples": [
+          "Hey! It's great to see you again.\nWhat are we creating today?",
+          "Hello there!\nI’m ready to build, code, design, or explain anything you want.",
+          "Yo! I’m CubeAI.\nI love helping with coding, math, games, and totally random ideas.",
+          "Hey! Before we begin, tell me one thing: what’s the plan?\nCoding? Game dev? Something fun?"
+        ]
+      },
 
-    "game_dev": {
-      "triggers": ["game", "dev", "clicker", "platformer", "shooter", "make game"],
-      "examples": [
-        "a game starts with a core loop and a simple player action",
-        "we could design a clicker system with upgrades and numbers",
-        "platformers always need good movement and small levels first",
-        "shooters need aiming and enemy patterns",
-        "maybe start with a prototype before adding graphics",
-        "do you want fast gameplay or calm gameplay",
-        "mechanics shape the game feel and challenge",
-        "tiny ideas can grow into full games"
-      ]
-    },
+      "game_dev": {
+        "triggers": ["game", "code a game", "make game", "clicker", "platformer", "shooter", "gdevelop", "unity"],
+        "examples": [
+          "A good game starts with one thing: mechanics.\nYou define what the player can do, then the world reacts.\nMovement, goals, rewards — everything grows from that core.",
+          "Clicker games usually revolve around simple loops:\n• Player clicks → gets currency\n• Currency upgrades → bigger clicks\n• Upgrades loop → player stays engaged.\nIf you want, I can sketch a clicker blueprint for you.",
+          "Platformer design basics:\n• Movement must feel tight and responsive.\n• Player needs consistent jump arcs.\n• Levels should teach mechanics without tutorials.\nWhat theme do you want your platformer to have?",
+          "Shooters need feedback — sound, particles, camera shake.\nEven tiny recoil makes the weapon feel alive.\nWe can also add enemies with simple AI loops.",
+          "Game feel is everything.\nA simple mechanic becomes amazing when timing, speed, and effects blend.\nWe can start with a prototype movement system and expand from there."
+        ]
+      },
 
-    "coding": {
-      "triggers": ["code", "js", "html", "css", "script", "function"],
-      "examples": [
-        "coding is like solving puzzles one line at a time",
-        "javascript can generate dynamic behavior easily",
-        "html builds the structure and css makes it look alive",
-        "clean code makes features easier to expand",
-        "functions keep logic organized and readable",
-        "good naming makes everything feel smoother to build",
-        "we can break the problem into small components"
-      ]
-    },
+      "coding": {
+        "triggers": ["code", "html", "js", "javascript", "css", "program"],
+        "examples": [
+          "Here’s how I'd think about coding:\nBreak problems into small predictable steps.\nEvery feature is just a chain of tiny solvable tasks.",
+          "If you're coding a website, start with structure (HTML), then style (CSS), then behavior (JS).\nBuilding in layers keeps everything clean.",
+          "Coding tip:\nNever write code first.\nWrite the idea, the purpose, the steps, THEN write the code.\nYour future self will thank you.",
+          "JavaScript can create movement, interaction, physics, UI... basically anything the browser can do.\nWant me to generate a small demo?"
+        ]
+      },
 
-    "pixel_art": {
-      "triggers": ["pixel", "sprite", "image", "draw", "art"],
-      "examples": [
-        "pixel art works great when shapes stay simple and readable",
-        "symmetry makes tiny sprites feel more alive",
-        "colors need contrast to pop out in small canvases",
-        "8x8 and 16x16 grids are perfect for quick designs",
-        "a character silhouette matters more than detail",
-        "shadows and highlights give tiny shapes personality"
-      ]
-    },
+      "math": {
+        "triggers": ["calculate", "+", "-", "*", "/", "solve", "math"],
+        "examples": [
+          "Let me walk through the steps:\n1. Identify the known values.\n2. Find the missing variable.\n3. Apply the operation logically.\nThis makes even hard math feel simple.",
+          "Math works best when you think slowly.\nTake the expression, break it into chunks, solve each chunk.\nWant me to solve something for you?",
+          "If A = 20 and A - B = 10, then the missing value must balance the equation.\nI look at the difference and match it.",
+          "Numbers always follow patterns.\nOnce you find the pattern, the answer becomes obvious."
+        ]
+      },
 
-    "math": {
-      "triggers": ["calculate", "math", "+", "-", "*", "/", "solve"],
-      "examples": [
-        "sometimes math feels like balancing tiny pieces",
-        "numbers follow patterns we can explore",
-        "equations are just relationships between values",
-        "we can break complicated math into simple steps",
-        "answers appear once we rearrange things clearly"
-      ]
-    },
+      "pixel_art": {
+        "triggers": ["pixel", "sprite", "image", "draw"],
+        "examples": [
+          "Pixel art works best when the silhouette is simple.\nThe eyes, the outline, the contrast — that's what sells the character.",
+          "Every sprite begins with symmetry or asymmetry.\nEven random shapes can become a character if colors follow a theme.",
+          "Pixel sprites look great when the shading is limited.\nOne highlight, one shadow, one midtone — easy and effective."
+        ]
+      },
 
-    "funny": {
-      "triggers": ["joke", "funny", "lol", "laugh"],
-      "examples": [
-        "humor makes coding bugs hurt a little less",
-        "sometimes errors feel like jokes programmed badly",
-        "a tiny mistake in code can create a big silly chaos",
-        "computers pretend they know everything but forget semicolons",
-        "debugging feels like detective work with no suspects"
-      ]
-    },
+      "chat_general": {
+        "triggers": ["what", "why", "how", "explain", "tell"],
+        "examples": [
+          "Let me think about that.\nI try to break your question into tiny pieces and connect ideas.",
+          "That’s interesting!\nSometimes the answer isn’t direct, but patterns help find the meaning.",
+          "Good question.\nIf we explore it step by step, the answer becomes clear.",
+          "Let me try explaining this in a simple way…"
+        ]
+      },
 
-    "chat": {
-      "triggers": ["talk", "chat", "tell", "explain"],
-      "examples": [
-        "i like when conversations bounce with new ideas",
-        "thoughts expand when we talk through them",
-        "every question can lead into something interesting",
-        "sharing ideas makes them easier to shape",
-        "i can explore concepts with you as we go"
-      ]
-    },
+      "stories": {
+        "triggers": ["story", "tell me a story"],
+        "examples": [
+          "Once, a tiny cube drifted in the void.\nEvery day it learned something new from passing stars.\nOne day it decided to build a universe of its own.",
+          "There was an alien who tried coding.\nIt pressed random buttons but somehow created a masterpiece.\nSometimes chaos is part of creativity.",
+          "In a quiet digital village, a small script woke up.\nIt didn't know what it was for, but it wanted to help anyone who typed to it.\nThat script eventually became… me."
+        ]
+      },
 
-    "fallback": {
-      "triggers": [],
-      "examples": [
-        "i can try to understand what you mean",
-        "maybe explain that a bit more",
-        "that sounds interesting but a little unclear",
-        "i want to follow along, say it again differently",
-        "tell me more so i can build a response"
-      ]
+      "fallback": {
+        "triggers": [],
+        "examples": [
+          "I’m thinking… your message feels interesting.\nLet me try to connect ideas and come up with something meaningful.",
+          "Hmm… not 100% sure, but I can explore that.\nGive me a little more detail and we can build from it.",
+          "Let me try approaching this from a different angle.\nThere might be multiple ways to understand your message.",
+          "That's unique!\nI can riff on that idea and see where it goes."
+        ]
+      }
     }
   }
 }
